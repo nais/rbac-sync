@@ -76,31 +76,37 @@ func main() {
 		return
 	}
 
-	namespaces := getAllNamespaces(clientSet)
+	for {
+		namespaces := getAllNamespaces(clientSet)
 
-	for _, namespace := range namespaces.Items {
-		namespaceName := namespace.Name
-		groupName := namespace.Annotations["rbac-sync.nais.io/group-name"]
-		if namespace.Annotations["rbac-sync.nais.io/role-name"] == "" {
-			roleName = "nais:developer"
+		for _, namespace := range namespaces.Items {
+			namespaceName := namespace.Name
+			groupName := namespace.Annotations["rbac-sync.nais.io/group-name"]
+			if groupName != "" {
+				if namespace.Annotations["rbac-sync.nais.io/role-name"] == "" {
+					roleName = "nais:developer"
+				}
+
+				if namespace.Annotations["rbac-sync.nais.io/rolebinding-name"] == "" {
+					roleName = "teammember"
+				}
+
+				updateRoles(namespaceName, groupName, roleName, clientSet)
+			}
 		}
-
-		if namespace.Annotations["rbac-sync.nais.io/rolebinding-name"] == "" {
-			roleName = "teammember"
-		}
-
-		updateRoles(namespaceName, groupName, roleName, clientSet)
+		log.Info("Sleeping for ", updateInterval)
+		time.Sleep(updateInterval)
 	}
 
 }
 
 // Get all namespaces
-func getAllNamespaces (clientset *kubernetes.Clientset) *v1.NamespaceList {
+func getAllNamespaces(clientset *kubernetes.Clientset) *v1.NamespaceList {
 	api := clientset.CoreV1()
-	namespacesList, err := api.Namespaces().List(metav1.ListOptions{FieldSelector: "metadata.annotations.rbac-sync.nais.io/group-name"})
+	namespacesList, err := api.Namespaces().List(metav1.ListOptions{})
 	if err != nil {
 		log.WithFields(log.Fields{
-		"error": err,
+			"error": err,
 		}).Error("Unable to get namespace list.")
 	}
 
@@ -136,7 +142,7 @@ func serveMetrics(address string) {
 // Gets group users and updates kubernetes rolebindings
 func updateRoles(namespaceName, groupName, roleName string, clientSet *kubernetes.Clientset) {
 	service := getService(serviceAccountKeyFile, gcpAdminUser)
-	
+
 	result, error := getMembers(service, groupName)
 	if error != nil {
 		log.WithFields(log.Fields{

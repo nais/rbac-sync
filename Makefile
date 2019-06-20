@@ -1,11 +1,10 @@
 NAME := rbac-sync
-REPO := nais/${NAME}
+REPO := navikt/${NAME}
 TAG := $(shell date +'%y-%m-%d')-$(shell git rev-parse --short HEAD)
 
 .PHONY: test install build docker-build docker-push
 
 test:
-	echo ${TAG}
 	go test
 
 install:
