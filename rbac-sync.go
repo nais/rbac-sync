@@ -43,7 +43,7 @@ var (
 var serviceAccountKeyFile string
 var gcpAdminUser string
 var updateInterval time.Duration
-var roleName, roleBindingName, bindAddress string
+var bindAddress string
 
 func main() {
 	flag.StringVar(&serviceAccountKeyFile, "serviceaccount-keyfile", "", "The Path to the Service Account Private Key file.")
@@ -80,18 +80,22 @@ func main() {
 		namespaces := getAllNamespaces(clientSet)
 
 		for _, namespace := range namespaces.Items {
+
 			namespaceName := namespace.Name
+
 			groupName := namespace.Annotations["rbac-sync.nais.io/group-name"]
+			roleName := "view"
+			roleBindingName := "teammember"
 			if groupName != "" {
-				if namespace.Annotations["rbac-sync.nais.io/role-name"] == "" {
-					roleName = "nais:developer"
+				if namespace.Annotations["rbac-sync.nais.io/role-name"] != "" {
+					roleName = namespace.Annotations["rbac-sync.nais.io/role-name"]
 				}
 
-				if namespace.Annotations["rbac-sync.nais.io/rolebinding-name"] == "" {
-					roleName = "teammember"
+				if namespace.Annotations["rbac-sync.nais.io/rolebinding-name"] != "" {
+					roleBindingName = namespace.Annotations["rbac-sync.nais.io/rolebinding-name"]
 				}
 
-				updateRoles(namespaceName, groupName, roleName, clientSet)
+				updateRoles(namespaceName, groupName, roleName, roleBindingName, clientSet)
 			}
 		}
 		log.Info("Sleeping for ", updateInterval)
@@ -101,6 +105,7 @@ func main() {
 }
 
 // Get all namespaces
+// TODO: Only return namespace with annotation rbac-sync
 func getAllNamespaces(clientset *kubernetes.Clientset) *v1.NamespaceList {
 	api := clientset.CoreV1()
 	namespacesList, err := api.Namespaces().List(metav1.ListOptions{})
@@ -140,7 +145,8 @@ func serveMetrics(address string) {
 }
 
 // Gets group users and updates kubernetes rolebindings
-func updateRoles(namespaceName, groupName, roleName string, clientSet *kubernetes.Clientset) {
+// TODO Fix variable handling here
+func updateRoles(namespaceName, groupName, roleName, roleBindingName string, clientSet *kubernetes.Clientset) {
 	service := getService(serviceAccountKeyFile, gcpAdminUser)
 
 	result, error := getMembers(service, groupName)
@@ -174,9 +180,13 @@ func updateRoles(namespaceName, groupName, roleName string, clientSet *kubernete
 		},
 		Subjects: subjects,
 	}
-
 	roleClient := clientSet.RbacV1beta1().RoleBindings(namespaceName)
-	updateResult, updateError := roleClient.Update(roleBinding)
+	rb, _ := roleClient.Get(roleBindingName, metav1.GetOptions{})
+	if rb != nil {
+		roleClient.Delete(roleBindingName, &metav1.DeleteOptions{})
+	}
+
+	updateResult, updateError := roleClient.Create(roleBinding)
 	if updateError != nil {
 		promErrors.WithLabelValues("role-update").Inc()
 		log.WithFields(log.Fields{
