@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+// Using struct to hold information necessary for role binding creation for future use
 type RbacConfiguration struct {
 	namespace       string
 	groupname       string
@@ -48,6 +49,7 @@ var gcpAdminUser string
 var updateInterval time.Duration
 var bindAddress string
 
+// Returns populated RbacConfiguration (for future use)
 func NewRbacConfiguration(namespace, groupname, rolename, rolebindingname string) *RbacConfiguration {
 	return &RbacConfiguration{
 		namespace:       namespace,
