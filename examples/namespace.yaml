@@ -4,5 +4,5 @@ metadata:
   name: testns
   annotations: 
     rbac-sync.nais.io/group-name: test@nav.no
-    rbac-sync.nais.io/role-name: teammember
+    rbac-sync.nais.io/role-name: view
     rbac-sync.nais.io/rolebinding-name: teammembers

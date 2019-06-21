@@ -5,6 +5,7 @@ import (
 	"flag"
 	"io/ioutil"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes/typed/rbac/v1beta1"
 	"net/http"
 	"os"
 	"os/signal"
@@ -22,20 +23,22 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+type RbacConfiguration struct {
+	namespace       string
+	groupname       string
+	rolename        string
+	rolebindingname string
+}
+
 var (
 	promSuccess = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "rbac_sync_success",
-			Help: "Cumulative number of role update operations",
-		},
+		prometheus.CounterOpts{Name: "rbac_sync_success", Help: "Cumulative number of role update operations"},
 		[]string{"count"},
 	)
 
 	promErrors = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "rbac_sync_errors",
-			Help: "Cumulative number of errors during role update operations",
-		},
+			Name: "rbac_sync_errors", Help: "Cumulative number of errors during role update operations"},
 		[]string{"count"},
 	)
 )
@@ -44,6 +47,15 @@ var serviceAccountKeyFile string
 var gcpAdminUser string
 var updateInterval time.Duration
 var bindAddress string
+
+func NewRbacConfiguration(namespace, groupname, rolename, rolebindingname string) *RbacConfiguration {
+	return &RbacConfiguration{
+		namespace:       namespace,
+		groupname:       groupname,
+		rolename:        rolename,
+		rolebindingname: rolebindingname,
+	}
+}
 
 func main() {
 	flag.StringVar(&serviceAccountKeyFile, "serviceaccount-keyfile", "", "The Path to the Service Account Private Key file.")
@@ -70,61 +82,12 @@ func main() {
 
 	clientSet, error := getKubeClient()
 	if error != nil {
-		log.WithFields(log.Fields{
-			"error": error,
-		}).Error("Unable to get kubernetes client.")
+		log.Errorf("Unable to get kubernetes client: %s", error)
 		return
 	}
 
-	for {
-		namespaces := getAllNamespaces(clientSet)
+	handleRoleBindings(clientSet, updateInterval)
 
-		for _, namespace := range namespaces.Items {
-
-			namespaceName := namespace.Name
-
-			groupName := namespace.Annotations["rbac-sync.nais.io/group-name"]
-			roleName := "view"
-			roleBindingName := "teammember"
-			if groupName != "" {
-				if namespace.Annotations["rbac-sync.nais.io/role-name"] != "" {
-					roleName = namespace.Annotations["rbac-sync.nais.io/role-name"]
-				}
-
-				if namespace.Annotations["rbac-sync.nais.io/rolebinding-name"] != "" {
-					roleBindingName = namespace.Annotations["rbac-sync.nais.io/rolebinding-name"]
-				}
-
-				updateRoles(namespaceName, groupName, roleName, roleBindingName, clientSet)
-			}
-		}
-		log.Info("Sleeping for ", updateInterval)
-		time.Sleep(updateInterval)
-	}
-
-}
-
-// Get all namespaces
-// TODO: Only return namespace with annotation rbac-sync
-func getAllNamespaces(clientset *kubernetes.Clientset) *v1.NamespaceList {
-	api := clientset.CoreV1()
-	namespacesList, err := api.Namespaces().List(metav1.ListOptions{})
-	if err != nil {
-		log.WithFields(log.Fields{
-			"error": err,
-		}).Error("Unable to get namespace list.")
-	}
-
-	return namespacesList
-}
-
-// Handles SIGTERM and exits
-func handleSigterm(stopChan chan struct{}) {
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGTERM)
-	<-signals
-	log.Info("Received SIGTERM. Terminating...")
-	close(stopChan)
 }
 
 // Provides health check and metrics routes
@@ -138,22 +101,74 @@ func serveMetrics(address string) {
 	prometheus.MustRegister(promErrors)
 	http.Handle("/metrics", promhttp.Handler())
 
-	log.WithFields(log.Fields{
-		"address": address,
-	}).Info("Server started")
+	log.Infof("Server started on %s", address)
 	log.Fatal(http.ListenAndServe(address, nil))
 }
 
+// Handles SIGTERM and exits
+func handleSigterm(stopChan chan struct{}) {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGTERM)
+	<-signals
+	log.Info("Received SIGTERM. Terminating...")
+	close(stopChan)
+}
+
+// Read namespaces and update roles in duration intervals
+// Uses the clientset to fetch namespaces and update the rolebindings
+func handleRoleBindings(clientset *kubernetes.Clientset, updateInterval time.Duration) {
+	for {
+		namespaces := getAllNamespaces(clientset)
+
+		for _, namespace := range namespaces.Items {
+			roleClient := clientset.RbacV1beta1().RoleBindings(namespace.Name)
+
+			// Delete the roles in each namespace so we also delete role bindings
+			// in namespaces that have removed annotations on namespace
+			err := deleteRoleBindingsInNamespace(roleClient)
+			if err != nil {
+				log.Errorf("Unable to delete role bindings: %s", err)
+			}
+
+			groupName := namespace.Annotations["rbac-sync.nais.io/group-name"]
+			roleName := "nais:developer"
+			roleBindingName := "teammember"
+			if groupName != "" {
+				if namespace.Annotations["rbac-sync.nais.io/role-name"] != "" {
+					roleName = namespace.Annotations["rbac-sync.nais.io/role-name"]
+				}
+
+				if namespace.Annotations["rbac-sync.nais.io/rolebinding-name"] != "" {
+					roleBindingName = namespace.Annotations["rbac-sync.nais.io/rolebinding-name"]
+				}
+
+				rbacConfiguration := NewRbacConfiguration(namespace.Name, groupName, roleName, roleBindingName)
+				updateRoles(roleClient, rbacConfiguration)
+			}
+		}
+		log.Infof("Sleeping for %s", updateInterval)
+		time.Sleep(updateInterval)
+	}
+}
+
+// Get all namespaces
+func getAllNamespaces(clientset *kubernetes.Clientset) *v1.NamespaceList {
+	api := clientset.CoreV1()
+	namespacesList, err := api.Namespaces().List(metav1.ListOptions{})
+	if err != nil {
+		log.Errorf("Unable to get namespace list: %s", err)
+	}
+
+	return namespacesList
+}
+
 // Gets group users and updates kubernetes rolebindings
-// TODO Fix variable handling here
-func updateRoles(namespaceName, groupName, roleName, roleBindingName string, clientSet *kubernetes.Clientset) {
+func updateRoles(roleClient v1beta1.RoleBindingInterface, configuration *RbacConfiguration) {
 	service := getService(serviceAccountKeyFile, gcpAdminUser)
 
-	result, error := getMembers(service, groupName)
+	result, error := getMembers(service, configuration.groupname)
 	if error != nil {
-		log.WithFields(log.Fields{
-			"error": error,
-		}).Error("Unable to get members.")
+		log.Errorf("Unable to get members: %s", error)
 		return
 	}
 
@@ -167,39 +182,44 @@ func updateRoles(namespaceName, groupName, roleName, roleBindingName string, cli
 	}
 	roleBinding := &rbacv1beta1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      roleBindingName,
-			Namespace: namespaceName,
+			Name:      configuration.rolebindingname,
+			Namespace: configuration.namespace,
 			Annotations: map[string]string{
-				"lastSync": time.Now().UTC().Format(time.RFC3339),
+				"rbac-sync.nais.io/managed": "true",
 			},
 		},
 		RoleRef: rbacv1beta1.RoleRef{
 			Kind:     "Role",
 			APIGroup: "rbac.authorization.k8s.io",
-			Name:     roleName,
+			Name:     configuration.rolename,
 		},
 		Subjects: subjects,
-	}
-	roleClient := clientSet.RbacV1beta1().RoleBindings(namespaceName)
-	rb, _ := roleClient.Get(roleBindingName, metav1.GetOptions{})
-	if rb != nil {
-		roleClient.Delete(roleBindingName, &metav1.DeleteOptions{})
 	}
 
 	updateResult, updateError := roleClient.Create(roleBinding)
 	if updateError != nil {
 		promErrors.WithLabelValues("role-update").Inc()
-		log.WithFields(log.Fields{
-			"rolebinding": roleBindingName,
-			"error":       updateError,
-		}).Error("Unable to update rolebinding.")
+		log.Errorf("Unable to update rolebinding %s: %s", configuration.rolebindingname, updateError)
 		return
 	}
-	log.WithFields(log.Fields{
-		"rolebinding": updateResult.GetObjectMeta().GetName(),
-		"namespace":   namespaceName,
-	}).Info("Updated rolebinding.")
+	log.Infof("Updated rolebinding %s in %s", updateResult.GetObjectMeta().GetName(), configuration.namespace)
 	promSuccess.WithLabelValues("role-update").Inc()
+}
+
+// Deletes all rolebindings managed by rbac-sync in the namespace
+func deleteRoleBindingsInNamespace(roleClient v1beta1.RoleBindingInterface) error {
+	rolebindings, err := roleClient.List(metav1.ListOptions{})
+	if err != nil {
+		log.Errorf("Unable to get role bindings list: %s", err)
+		return err
+	}
+	for _, rolebinding := range rolebindings.Items {
+		if rolebinding.Annotations["rbac-sync.nais.io/managed"] == "true" {
+			log.Infof("Deleting role binding %s in %s", rolebinding.Name, rolebinding.GetObjectMeta().GetNamespace())
+			roleClient.Delete(rolebinding.Name, &metav1.DeleteOptions{})
+		}
+	}
+	return nil
 }
 
 // Build and returns an Admin SDK Directory service object authorized with
@@ -208,18 +228,14 @@ func getService(serviceAccountKeyfile string, gcpAdminUser string) *admin.Servic
 	jsonCredentials, err := ioutil.ReadFile(serviceAccountKeyfile)
 	if err != nil {
 		promErrors.WithLabelValues("get-serviceaccount-keyfile").Inc()
-		log.WithFields(log.Fields{
-			"error": err,
-		}).Error("Unable to read service account key file.")
+		log.Errorf("Unable to read service account key file %s", err)
 		return nil
 	}
 
 	config, err := google.JWTConfigFromJSON(jsonCredentials, admin.AdminDirectoryGroupMemberReadonlyScope, admin.AdminDirectoryGroupReadonlyScope)
 	if err != nil {
 		promErrors.WithLabelValues("get-serviceaccount-secret").Inc()
-		log.WithFields(log.Fields{
-			"error": err,
-		}).Error("Unable to parse service account key file to config.")
+		log.Errorf("Unable to parse service account key file to config: %s", err)
 		return nil
 	}
 	config.Subject = gcpAdminUser
@@ -229,9 +245,7 @@ func getService(serviceAccountKeyfile string, gcpAdminUser string) *admin.Servic
 	service, err := admin.New(client)
 	if err != nil {
 		promErrors.WithLabelValues("get-kube-client").Inc()
-		log.WithFields(log.Fields{
-			"error": err,
-		}).Error("Unable to retrieve Google Admin Client.")
+		log.Errorf("Unable to retrieve Google Admin Client: %s", err)
 		return nil
 	}
 	return service
@@ -243,9 +257,7 @@ func getKubeClient() (*kubernetes.Clientset, error) {
 
 	inClusterConfig, err := rest.InClusterConfig()
 	if err != nil {
-		log.WithFields(log.Fields{
-			"error": err,
-		}).Error("Unable to get in kubernetes cluster config.")
+		log.Errorf("Unable to get in kubernetes cluster config: %s", err)
 	}
 
 	kubeClusterConfig = inClusterConfig
@@ -253,9 +265,7 @@ func getKubeClient() (*kubernetes.Clientset, error) {
 	clientSet, err := kubernetes.NewForConfig(kubeClusterConfig)
 	if err != nil {
 		promErrors.WithLabelValues("get-kube-client").Inc()
-		log.WithFields(log.Fields{
-			"error": err,
-		}).Error("Unable to get kube client.")
+		log.Errorf("Unable to get kube client: %s", err)
 	}
 
 	return clientSet, err
@@ -266,9 +276,6 @@ func getMembers(service *admin.Service, groupname string) ([]*admin.Member, erro
 	result, err := service.Members.List(groupname).Do()
 	if err != nil {
 		promErrors.WithLabelValues("get-members").Inc()
-		log.WithFields(log.Fields{
-			"error": err,
-		}).Error("Unable to get group members.")
 		return nil, err
 	}
 
