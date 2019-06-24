@@ -1,12 +1,11 @@
 defaults: &defaults
   docker:
-    - image: circleci/golang:1.11
+    - image: circleci/golang:1.12
 
 version: 2
 jobs:
   build:
     <<: *defaults
-
     steps:
       - setup_remote_docker
       - checkout
@@ -33,7 +32,7 @@ jobs:
           at: /tmp/workspace
       - run:
           name: Load Docker container
-          command: docker laod -i /tmp/workspace/docker-image.tar
+          command: docker load -i /tmp/workspace/docker-image.tar
       - run:
           name: Login to Dockerhub
           command: echo "$DOCKER_PASSWORD" | base64 --decode | docker login -u "$DOCKER_USER" --password-stdin
@@ -57,3 +56,15 @@ jobs:
             sed -i 's/image: navikt/rbac-sync:.*/image: navikt/rbac-sync: '"${version}"'/g' vars/rbac-sync.yaml
             git commit -am "Update rbac-sync to ${version}"
             git push
+
+workflows:
+   version: 2
+   build_and_deploy:
+     jobs:
+       - build
+       - release:
+           requires:
+             - build
+           filters:
+             branches:
+               only: master
