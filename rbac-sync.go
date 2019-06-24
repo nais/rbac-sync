@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"io/ioutil"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes/typed/rbac/v1beta1"
 	"net/http"
 	"os"
@@ -49,14 +49,28 @@ var gcpAdminUser string
 var updateInterval time.Duration
 var bindAddress string
 
-// NewRbacConfiguration returns populated RbacConfiguration (for future use)
-func NewRbacConfiguration(namespace, groupname, rolename, rolebindingname string) *RbacConfiguration {
-	return &RbacConfiguration{
-		namespace:       namespace,
-		groupname:       groupname,
-		rolename:        rolename,
-		rolebindingname: rolebindingname,
+// NewRbacConfiguration returns populated RbacConfiguration
+func NewRbacConfiguration(namespace v1.Namespace) *RbacConfiguration {
+	cfg := &RbacConfiguration{
+		namespace:       namespace.Name,
+		groupname:       namespace.Annotations["rbac-sync.nais.io/group-name"],
+		rolename:        namespace.Annotations["rbac-sync.nais.io/role-name"],
+		rolebindingname: namespace.Annotations["rbac-sync.nais.io/rolebinding-name"],
 	}
+
+	if len(cfg.groupname) == 0 {
+		return nil
+	}
+
+	if len(cfg.rolename) == 0 {
+		cfg.rolename = "nais:developer"
+	}
+
+	if len(cfg.rolebindingname) == 0 {
+		cfg.rolebindingname = "nais:teammember"
+	}
+
+	return cfg
 }
 
 func main() {
@@ -132,22 +146,13 @@ func configureRoleBindinds(clientset *kubernetes.Clientset, updateInterval time.
 				log.Errorf("Unable to delete role bindings: %s", err)
 			}
 
-			groupName := namespace.Annotations["rbac-sync.nais.io/group-name"]
-			roleName := "nais:developer"
-			roleBindingName := "teammember"
-			if groupName != "" {
-				if namespace.Annotations["rbac-sync.nais.io/role-name"] != "" {
-					roleName = namespace.Annotations["rbac-sync.nais.io/role-name"]
-				}
-
-				if namespace.Annotations["rbac-sync.nais.io/rolebinding-name"] != "" {
-					roleBindingName = namespace.Annotations["rbac-sync.nais.io/rolebinding-name"]
-				}
-
-				rbacConfiguration := NewRbacConfiguration(namespace.Name, groupName, roleName, roleBindingName)
-				updateRoles(roleClient, rbacConfiguration)
+			rbacConfiguration := NewRbacConfiguration(namespace)
+			if rbacConfiguration == nil {
+				continue
 			}
+			updateRoles(roleClient, rbacConfiguration)
 		}
+
 		log.Infof("Sleeping for %s", updateInterval)
 		time.Sleep(updateInterval)
 	}
