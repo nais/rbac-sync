@@ -1,6 +1,6 @@
 NAME := rbac-sync
 REPO := navikt/${NAME}
-TAG := $(shell date +'%y-%m-%d')-$(shell git rev-parse --short HEAD)
+TAG := $(shell date +'%Y-%m-%d')-$(shell git rev-parse --short HEAD)
 
 .PHONY: test install build docker-build docker-push
 
@@ -18,14 +18,8 @@ install:
 build:
 	go build -o ${NAME}
 
-local:
-	go run ${NAME} --serviceaccount-keyfile=credentials.json --gcp-admin-user=sten.ivar.rokke@nav.no --bind-address=localhost:8080
-
 docker-build:
 	docker build -t "$(REPO):$(TAG)" -t "$(REPO):latest" .
 
 docker-push:
 	docker push "$(REPO)"
-
-clean:
-	rm -rf ${NAME}

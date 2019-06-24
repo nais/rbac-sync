@@ -1,7 +1,9 @@
 FROM golang:1.12.6 as builder
+ENV CGO_ENABLED=0
+ENV GOOS=linux
 WORKDIR /go/src/github.com/nais/rbac-sync
 COPY . .
-RUN make install; CGO_ENABLED=0 GOOS=linux go build -o rbac-sync; \
+RUN make install; go build -o rbac-sync; \
   curl -o ca-certificates.crt https://curl.haxx.se/ca/cacert.pem;
 
 FROM scratch

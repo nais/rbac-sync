@@ -1,0 +1,59 @@
+defaults: &defaults
+  docker:
+    - image: circleci/golang:1.11
+
+version: 2
+jobs:
+  build:
+    <<: *defaults
+
+    steps:
+      - setup_remote_docker
+      - checkout
+      - run:
+          name: Create workspace
+          command: mkdir -p /tmp/workspace
+      - run:
+          name: Build Docker container
+          command: docker build -t navikt/rbac-sync:latest .
+      - run: 
+          name: Save Docker Container
+          command: docker save navikt/rbac-sync:latest -o /tmp/workspace/docker-image.tar
+      - persist_to_workspace:
+          root: /tmp/workspace
+          paths:
+            - docker-image.tar
+  
+  release:
+    <<: *defaults
+    steps:
+      - setup_remote_docker
+      - checkout
+      - attach_workspace:
+          at: /tmp/workspace
+      - run:
+          name: Load Docker container
+          command: docker laod -i /tmp/workspace/docker-image.tar
+      - run:
+          name: Login to Dockerhub
+          command: echo "$DOCKER_PASSWORD" | base64 --decode | docker login -u "$DOCKER_USER" --password-stdin
+      - run:
+          name: Push Docker container
+          command: |
+            version=$(./version.sh)
+            docker tag navikt/rbac-sync:latest navikt/rbac-sync:${version}
+            docker push -t navikt/rbac-sync:latest
+            docker push -t navikt/rbac-sync:${version}
+      - run:
+          name: Publish Release on GitHub
+          command: |
+            git config --global user.name "${CIRCLE_PROJECT_USERNAME}"
+            git tag -a ${version} -m "Release rbac-sync ${vesion} [skip ci]" && git push --tags https://$GITHUB_TOKEN@github.com/nais/rbac-sync
+      - run:
+          name: Update version in nais-yaml
+          command: |
+            version=$(./version.sh)
+            git clone https://${CIRCLE_PROJECT_USERNAME}:${GITHUB_TOKEN}@github.com/navikt/nais-yaml && cd nais-yaml
+            sed -i 's/image: navikt/rbac-sync:.*/image: navikt/rbac-sync: '"${version}"'/g' vars/rbac-sync.yaml
+            git commit -am "Update rbac-sync to ${version}"
+            git push
