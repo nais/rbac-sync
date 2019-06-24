@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes/typed/rbac/v1beta1"
@@ -137,25 +138,33 @@ func configureRoleBindinds(clientset *kubernetes.Clientset, updateInterval time.
 		namespaces := getAllNamespaces(clientset)
 
 		for _, namespace := range namespaces.Items {
-			roleClient := clientset.RbacV1beta1().RoleBindings(namespace.Name)
-
-			// Delete the roles in each namespace so we also delete role bindings
-			// in namespaces that have removed annotations on namespace
-			err := deleteRoleBindingsInNamespace(roleClient)
+			err := configureRoleBinding(clientset, namespace)
 			if err != nil {
-				log.Errorf("Unable to delete role bindings: %s", err)
+				log.Error(err)
 			}
-
-			rbacConfiguration := NewRbacConfiguration(namespace)
-			if rbacConfiguration == nil {
-				continue
-			}
-			updateRoles(roleClient, rbacConfiguration)
 		}
 
 		log.Infof("Sleeping for %s", updateInterval)
 		time.Sleep(updateInterval)
 	}
+}
+
+func configureRoleBinding(clientset kubernetes.Interface, namespace v1.Namespace) error {
+	roleClient := clientset.RbacV1beta1().RoleBindings(namespace.Name)
+
+	// Delete the roles in each namespace so we also delete role bindings
+	// in namespaces that have removed annotations on namespace
+	err := deleteRoleBindingsInNamespace(roleClient)
+	if err != nil {
+		return fmt.Errorf("unable to delete role bindings: %s", err)
+	}
+
+	rbacConfiguration := NewRbacConfiguration(namespace)
+	if rbacConfiguration == nil {
+		return nil
+	}
+
+	return updateRoles(roleClient, rbacConfiguration)
 }
 
 // Get all namespaces
@@ -169,25 +178,16 @@ func getAllNamespaces(clientset *kubernetes.Clientset) *v1.NamespaceList {
 	return namespacesList
 }
 
-// Gets group users and updates kubernetes rolebindings
-func updateRoles(roleClient v1beta1.RoleBindingInterface, configuration *RbacConfiguration) {
-	service := getService(serviceAccountKeyFile, gcpAdminUser)
-
-	result, error := getMembers(service, configuration.groupname)
-	if error != nil {
-		log.Errorf("Unable to get members: %s", error)
-		return
+func subjectFromEmail(email string) rbacv1beta1.Subject {
+	return rbacv1beta1.Subject{
+		Kind:     "User",
+		APIGroup: "rbac.authorization.k8s.io",
+		Name:     email,
 	}
+}
 
-	var subjects []rbacv1beta1.Subject
-	for _, member := range uniq(result) {
-		subjects = append(subjects, rbacv1beta1.Subject{
-			Kind:     "User",
-			APIGroup: "rbac.authorization.k8s.io",
-			Name:     member.Email,
-		})
-	}
-	roleBinding := &rbacv1beta1.RoleBinding{
+func roleBindingWithSubjects(configuration *RbacConfiguration, subjects []rbacv1beta1.Subject) rbacv1beta1.RoleBinding {
+	return rbacv1beta1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      configuration.rolebindingname,
 			Namespace: configuration.namespace,
@@ -202,15 +202,34 @@ func updateRoles(roleClient v1beta1.RoleBindingInterface, configuration *RbacCon
 		},
 		Subjects: subjects,
 	}
+}
 
-	updateResult, updateError := roleClient.Create(roleBinding)
+// Gets group users and updates kubernetes rolebindings
+func updateRoles(roleClient v1beta1.RoleBindingInterface, configuration *RbacConfiguration) error {
+	service := getService(serviceAccountKeyFile, gcpAdminUser)
+
+	result, error := getMembers(service, configuration.groupname)
+	if error != nil {
+		return fmt.Errorf("unable to get members: %s", error)
+	}
+
+	var subjects []rbacv1beta1.Subject
+	for _, member := range uniq(result) {
+		subjects = append(subjects, subjectFromEmail(member.Email))
+	}
+
+	roleBinding := roleBindingWithSubjects(configuration, subjects)
+
+	updateResult, updateError := roleClient.Create(&roleBinding)
 	if updateError != nil {
 		promErrors.WithLabelValues("role-update").Inc()
-		log.Errorf("Unable to update rolebinding %s: %s", configuration.rolebindingname, updateError)
-		return
+		return fmt.Errorf("unable to update rolebinding %s: %s", configuration.rolebindingname, updateError)
 	}
+
 	log.Infof("Updated rolebinding %s in %s", updateResult.GetObjectMeta().GetName(), configuration.namespace)
 	promSuccess.WithLabelValues("role-update").Inc()
+
+	return nil
 }
 
 // Deletes all rolebindings managed by rbac-sync in the namespace
