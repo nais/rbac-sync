@@ -41,8 +41,8 @@ jobs:
           command: |
             version=$(./version.sh)
             docker tag navikt/rbac-sync:latest navikt/rbac-sync:${version}
-            docker push -t navikt/rbac-sync:latest
-            docker push -t navikt/rbac-sync:${version}
+            docker push navikt/rbac-sync:latest
+            docker push navikt/rbac-sync:${version}
       - run:
           name: Publish Release on GitHub
           command: |
