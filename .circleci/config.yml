@@ -46,8 +46,9 @@ jobs:
       - run:
           name: Publish Release on GitHub
           command: |
+            version=$(./version.sh)
             git config --global user.name "${CIRCLE_PROJECT_USERNAME}"
-            git tag -a ${version} -m "Release rbac-sync ${vesion} [skip ci]" && git push --tags https://$GITHUB_TOKEN@github.com/nais/rbac-sync
+            git tag -a ${version} -m "Release rbac-sync ${version} [skip ci]" && git push --tags https://$GITHUB_TOKEN@github.com/nais/rbac-sync
       - run:
           name: Update version in nais-yaml
           command: |

@@ -88,7 +88,7 @@ func main() {
 		return
 	}
 
-	handleRoleBindings(clientSet, updateInterval)
+	configureRoleBindinds(clientSet, updateInterval)
 
 }
 
@@ -118,7 +118,7 @@ func handleSigterm(stopChan chan struct{}) {
 
 // Read namespaces and update roles in duration intervals
 // Uses the clientset to fetch namespaces and update the rolebindings
-func handleRoleBindings(clientset *kubernetes.Clientset, updateInterval time.Duration) {
+func configureRoleBindinds(clientset *kubernetes.Clientset, updateInterval time.Duration) {
 	for {
 		namespaces := getAllNamespaces(clientset)
 
