@@ -149,6 +149,7 @@ func configureRoleBindinds(clientset *kubernetes.Clientset, updateInterval time.
 	}
 }
 
+// Deletes existing role bindings and creates the updated ones
 func configureRoleBinding(clientset kubernetes.Interface, namespace v1.Namespace) error {
 	roleClient := clientset.RbacV1beta1().RoleBindings(namespace.Name)
 
@@ -178,7 +179,7 @@ func getAllNamespaces(clientset *kubernetes.Clientset) *v1.NamespaceList {
 	return namespacesList
 }
 
-func subjectFromEmail(email string) rbacv1beta1.Subject {
+func getSubjectFromEmail(email string) rbacv1beta1.Subject {
 	return rbacv1beta1.Subject{
 		Kind:     "User",
 		APIGroup: "rbac.authorization.k8s.io",
@@ -186,7 +187,7 @@ func subjectFromEmail(email string) rbacv1beta1.Subject {
 	}
 }
 
-func roleBindingWithSubjects(configuration *RbacConfiguration, subjects []rbacv1beta1.Subject) rbacv1beta1.RoleBinding {
+func getRoleBindingWithSubjects(configuration *RbacConfiguration, subjects []rbacv1beta1.Subject) rbacv1beta1.RoleBinding {
 	return rbacv1beta1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      configuration.rolebindingname,
@@ -206,7 +207,7 @@ func roleBindingWithSubjects(configuration *RbacConfiguration, subjects []rbacv1
 
 // Gets group users and updates kubernetes rolebindings
 func updateRoles(roleClient v1beta1.RoleBindingInterface, configuration *RbacConfiguration) error {
-	service := getService(serviceAccountKeyFile, gcpAdminUser)
+	service := getAdminService(serviceAccountKeyFile, gcpAdminUser)
 
 	result, error := getMembers(service, configuration.groupname)
 	if error != nil {
@@ -215,10 +216,10 @@ func updateRoles(roleClient v1beta1.RoleBindingInterface, configuration *RbacCon
 
 	var subjects []rbacv1beta1.Subject
 	for _, member := range uniq(result) {
-		subjects = append(subjects, subjectFromEmail(member.Email))
+		subjects = append(subjects, getSubjectFromEmail(member.Email))
 	}
 
-	roleBinding := roleBindingWithSubjects(configuration, subjects)
+	roleBinding := getRoleBindingWithSubjects(configuration, subjects)
 
 	updateResult, updateError := roleClient.Create(&roleBinding)
 	if updateError != nil {
@@ -250,7 +251,7 @@ func deleteRoleBindingsInNamespace(roleClient v1beta1.RoleBindingInterface) erro
 
 // Build and returns an Admin SDK Directory service object authorized with
 // the service accounts that act on behalf of the given user.
-func getService(serviceAccountKeyfile string, gcpAdminUser string) *admin.Service {
+func getAdminService(serviceAccountKeyfile string, gcpAdminUser string) *admin.Service {
 	jsonCredentials, err := ioutil.ReadFile(serviceAccountKeyfile)
 	if err != nil {
 		promErrors.WithLabelValues("get-serviceaccount-keyfile").Inc()
