@@ -24,7 +24,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-// RbacConfiguration is a struct to hold information necessary for role binding creation for future use
+// RbacConfiguration is a struct to hold information necessary for role binding creation
 type RbacConfiguration struct {
 	namespace       string
 	groupname       string
@@ -103,7 +103,7 @@ func main() {
 		return
 	}
 
-	configureRoleBindinds(clientSet, updateInterval)
+	configureRoleBindings(clientSet, updateInterval)
 
 }
 
@@ -133,7 +133,7 @@ func handleSigterm(stopChan chan struct{}) {
 
 // Read namespaces and update roles in duration intervals
 // Uses the clientset to fetch namespaces and update the rolebindings
-func configureRoleBindinds(clientset *kubernetes.Clientset, updateInterval time.Duration) {
+func configureRoleBindings(clientset *kubernetes.Clientset, updateInterval time.Duration) {
 	for {
 		namespaces := getAllNamespaces(clientset)
 
