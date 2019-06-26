@@ -8,12 +8,7 @@ test:
 	go test
 
 install:
-	go get -u k8s.io/client-go/...
-	go get -u github.com/prometheus/client_golang/...
-	go get -u golang.org/x/oauth2/...
-	go get -u google.golang.org/api/groupssettings/v1
-	go get -u google.golang.org/api/admin/directory/v1
-	go get -u github.com/sirupsen/logrus
+	go install
 
 build:
 	go build -o ${NAME}
