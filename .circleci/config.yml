@@ -30,7 +30,7 @@ jobs:
       - checkout
       - add_ssh_keys:
           fingerprints:
-            - "23:30:b7:2a:e9:44:5f:d9:d0:fd:e9:ce:7b:1d:0a:96"
+            - "27:9e:6e:78:53:84:c3:e1:a7:cd:92:06:2b:8f:ad:15"
       - attach_workspace:
           at: /tmp/workspace
       - run:
@@ -57,7 +57,7 @@ jobs:
           command: |
             version=$(./version.sh)
             git clone git@github.com:navikt/nais-yaml && cd nais-yaml
-            sed -i 's/image: navikt/rbac-sync:.*/image: navikt/rbac-sync: '"${version}"'/g' vars/rbac-sync.yaml
+            sed -i 's/image\: navikt/rbac-sync\:.*/image\: navikt/rbac-sync\: '"${version}"'/g' vars/rbac-sync.yaml
             git commit -am "Update rbac-sync to ${version}"
             git push
 
