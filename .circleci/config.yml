@@ -57,7 +57,7 @@ jobs:
           command: |
             version=$(./version.sh)
             git clone git@github.com:navikt/nais-yaml && cd nais-yaml
-            sed -i 's/image\: navikt/rbac-sync\:.*/image\: navikt/rbac-sync\: '"${version}"'/g' vars/rbac-sync.yaml
+            sed -i 's/image\: navikt\/rbac-sync\:.*/image\: navikt\/rbac-sync\: '"${version}"'/g' vars/rbac-sync.yaml
             git commit -am "Update rbac-sync to ${version}"
             git push
 
