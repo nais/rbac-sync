@@ -4,6 +4,7 @@ import (
 	"flag"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,6 +17,7 @@ import (
 )
 
 var (
+	kubeconfig             string
 	serviceAccountKeyFile  string
 	gcpAdminUser           string
 	updateInterval         time.Duration
@@ -32,6 +34,7 @@ var (
 )
 
 func main() {
+	flag.StringVar(&kubeconfig, "kubeconfig", "", "path to Kubernetes config file")
 	flag.StringVar(&serviceAccountKeyFile, "serviceaccount-keyfile", "", "The path to the service account private key file.")
 	flag.StringVar(&gcpAdminUser, "gcp-admin-user", "", "The google admin user e-mail address.")
 	flag.StringVar(&bindAddress, "bind-address", ":8080", "Bind address for application.")
@@ -97,19 +100,25 @@ func handleSigterm(stopChan chan struct{}) {
 
 // Gets kubernetes config and client
 func getKubeClient() (*kubernetes.Clientset, error) {
-	var kubeClusterConfig *rest.Config
-
-	inClusterConfig, err := rest.InClusterConfig()
+	kubeconfig, err := getK8sConfig()
 	if err != nil {
-		log.Errorf("Unable to get in kubernetes cluster config: %s", err)
+		log.Fatal("unable to initialize kubernetes config")
 	}
 
-	kubeClusterConfig = inClusterConfig
-
-	clientSet, err := kubernetes.NewForConfig(kubeClusterConfig)
+	clientSet, err := kubernetes.NewForConfig(kubeconfig)
 	if err != nil {
 		log.Errorf("Unable to get kube client: %s", err)
 	}
 
 	return clientSet, err
+}
+
+func getK8sConfig() (*rest.Config, error) {
+	if kubeconfig == "" {
+		log.Infof("using in-cluster configuration")
+		return rest.InClusterConfig()
+	} else {
+		log.Infof("using configuration from '%s'", kubeconfig)
+		return clientcmd.BuildConfigFromFlags("", kubeconfig)
+	}
 }
