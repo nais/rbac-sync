@@ -14,14 +14,14 @@ func getAdminService(serviceAccountKeyfile string, gcpAdminUser string) *admin.S
 	jsonCredentials, err := ioutil.ReadFile(serviceAccountKeyfile)
 	if err != nil {
 		promErrors.WithLabelValues("get-serviceaccount-keyfile").Inc()
-		log.Errorf("Unable to read service account key file %s", err)
+		log.Errorf("unable to read service account key file %s", err)
 		return nil
 	}
 
 	config, err := google.JWTConfigFromJSON(jsonCredentials, admin.AdminDirectoryGroupMemberReadonlyScope, admin.AdminDirectoryGroupReadonlyScope)
 	if err != nil {
 		promErrors.WithLabelValues("get-serviceaccount-secret").Inc()
-		log.Errorf("Unable to parse service account key file to config: %s", err)
+		log.Errorf("unable to parse service account key file to config: %s", err)
 		return nil
 	}
 

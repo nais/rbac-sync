@@ -66,7 +66,7 @@ func (s *Synchronizer) synchronizeRBAC() {
 			}
 		}
 
-		log.Infof("Sleeping for %s", s.UpdateInterval)
+		log.Infof("sleeping for %s", s.UpdateInterval)
 		time.Sleep(s.UpdateInterval)
 	}
 }
@@ -96,7 +96,7 @@ func (s *Synchronizer) configureRoleBinding(namespace corev1.Namespace) error {
 	// Delete the roles in each namespace so we also delete role bindings
 	// in namespaces that have removed annotations on namespace
 	if err := deleteRoleBindingsInNamespace(roleClient); err != nil {
-		return fmt.Errorf("Unable to delete role bindings: %s", err)
+		return fmt.Errorf("unable to delete role bindings: %s", err)
 	}
 
 	rbacConfiguration := s.NewRbacConfiguration(namespace)
@@ -107,7 +107,7 @@ func (s *Synchronizer) configureRoleBinding(namespace corev1.Namespace) error {
 func (s *Synchronizer) getAllNamespaces() []corev1.Namespace {
 	namespacesList, err := s.Clientset.CoreV1().Namespaces().List(metav1.ListOptions{})
 	if err != nil {
-		log.Errorf("Unable to get all namespaces: %s", err)
+		log.Errorf("unable to get all namespaces: %s", err)
 	}
 
 	return namespacesList.Items
@@ -135,7 +135,7 @@ func (s *Synchronizer) updateRoles(roleClient v1beta1.RoleBindingInterface, conf
 		return fmt.Errorf("unable to update rolebinding %s: %s", configuration.rolebindingName, updateError)
 	}
 
-	log.Infof("Updated rolebinding %s in %s", updateResult.GetObjectMeta().GetName(), configuration.namespace)
+	log.Infof("updated rolebinding %s in %s", updateResult.GetObjectMeta().GetName(), configuration.namespace)
 
 	return nil
 }
@@ -144,14 +144,14 @@ func (s *Synchronizer) updateRoles(roleClient v1beta1.RoleBindingInterface, conf
 func deleteRoleBindingsInNamespace(roleClient v1beta1.RoleBindingInterface) error {
 	rolebindings, err := roleClient.List(metav1.ListOptions{})
 	if err != nil {
-		log.Errorf("Unable to get role bindings list: %s", err)
+		log.Errorf("unable to get role bindings list: %s", err)
 		return err
 	}
 	for _, rolebinding := range rolebindings.Items {
 		if rolebinding.Annotations[ManagedAnnotation] == "true" {
-			log.Infof("Deleting role binding %s in %s", rolebinding.Name, rolebinding.GetObjectMeta().GetNamespace())
+			log.Infof("deleting role binding %s in %s", rolebinding.Name, rolebinding.GetObjectMeta().GetNamespace())
 			if err := roleClient.Delete(rolebinding.Name, &metav1.DeleteOptions{}); err != nil {
-				return fmt.Errorf("Unable to delete rolebinding: %s, in namespace: %s", rolebinding.Name, rolebinding.GetObjectMeta().GetNamespace())
+				return fmt.Errorf("unable to delete rolebinding: %s, in namespace: %s", rolebinding.Name, rolebinding.GetObjectMeta().GetNamespace())
 			}
 		}
 	}

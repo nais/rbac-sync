@@ -52,11 +52,11 @@ func main() {
 
 	if serviceAccountKeyFile == "" {
 		flag.Usage()
-		log.Fatal("Missing configuration: -serviceaccount-keyfile")
+		log.Fatal("missing configuration: -serviceaccount-keyfile")
 	}
 	if gcpAdminUser == "" {
 		flag.Usage()
-		log.Fatal("Missing configuration: -gcp-admin-user")
+		log.Fatal("missing configuration: -gcp-admin-user")
 	}
 
 	stopChan := make(chan struct{}, 1)
@@ -66,7 +66,7 @@ func main() {
 
 	clientSet, error := getKubeClient()
 	if error != nil {
-		log.Errorf("Unable to get kubernetes client: %s", error)
+		log.Errorf("unable to get kubernetes client: %s", error)
 		return
 	}
 
@@ -85,7 +85,7 @@ func serveMetrics(address string) {
 
 	http.Handle("/metrics", promhttp.Handler())
 
-	log.Infof("Server started on %s", address)
+	log.Infof("server started on %s", address)
 	log.Fatal(http.ListenAndServe(address, nil))
 }
 
@@ -94,7 +94,7 @@ func handleSigterm(stopChan chan struct{}) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGTERM)
 	<-signals
-	log.Info("Received SIGTERM. Terminating...")
+	log.Info("received SIGTERM. Terminating...")
 	close(stopChan)
 }
 
@@ -107,7 +107,7 @@ func getKubeClient() (*kubernetes.Clientset, error) {
 
 	clientSet, err := kubernetes.NewForConfig(kubeconfig)
 	if err != nil {
-		log.Errorf("Unable to get kube client: %s", err)
+		log.Errorf("unable to get kube client: %s", err)
 	}
 
 	return clientSet, err
