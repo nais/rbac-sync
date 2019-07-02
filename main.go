@@ -32,7 +32,7 @@ var (
 )
 
 func main() {
-	flag.StringVar(&serviceAccountKeyFile, "serviceaccount-keyfile", "", "The Path to the Service Account Private Key file.")
+	flag.StringVar(&serviceAccountKeyFile, "serviceaccount-keyfile", "", "The path to the service account private key file.")
 	flag.StringVar(&gcpAdminUser, "gcp-admin-user", "", "The google admin user e-mail address.")
 	flag.StringVar(&bindAddress, "bind-address", ":8080", "Bind address for application.")
 	flag.DurationVar(&updateInterval, "update-interval", time.Minute*5, "Update interval in seconds.")
@@ -49,11 +49,11 @@ func main() {
 
 	if serviceAccountKeyFile == "" {
 		flag.Usage()
-		log.Fatal("Missing configuration: --serviceaccount-keyfile")
+		log.Fatal("Missing configuration: -serviceaccount-keyfile")
 	}
 	if gcpAdminUser == "" {
 		flag.Usage()
-		log.Fatal("Missing configuration: --gcp-admin-user")
+		log.Fatal("Missing configuration: -gcp-admin-user")
 	}
 
 	stopChan := make(chan struct{}, 1)
