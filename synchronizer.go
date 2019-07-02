@@ -21,6 +21,7 @@ const (
 
 type Synchronizer struct {
 	Clientset              *kubernetes.Clientset
+	IAMClient              IAMClient
 	UpdateInterval         time.Duration
 	GCPAdminUser           string
 	ServiceAccountKeyFile  string
@@ -37,6 +38,7 @@ type RbacConfiguration struct {
 }
 
 func NewSynchronizer(clientSet *kubernetes.Clientset,
+	iamClient IAMClient,
 	updateInterval time.Duration,
 	gcpAdminUser string,
 	serviceAccountKeyFile string,
@@ -44,6 +46,7 @@ func NewSynchronizer(clientSet *kubernetes.Clientset,
 	defaultRolebindingName string) *Synchronizer {
 	return &Synchronizer{
 		Clientset:              clientSet,
+		IAMClient:              iamClient,
 		UpdateInterval:         updateInterval,
 		GCPAdminUser:           gcpAdminUser,
 		ServiceAccountKeyFile:  serviceAccountKeyFile,
@@ -57,6 +60,7 @@ func NewSynchronizer(clientSet *kubernetes.Clientset,
 func (s *Synchronizer) synchronizeRBAC() {
 	for {
 		for _, namespace := range s.getAllNamespaces() {
+
 			// Only configure Rolebinding if group name annotation is set
 			if len(namespace.Annotations[GroupNameAnnotation]) > 0 {
 				if err := s.configureRoleBinding(namespace); err != nil {

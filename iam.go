@@ -8,6 +8,28 @@ import (
 	"io/ioutil"
 )
 
+type IAMClient interface {
+	getMembers(groupEmail string) []string
+}
+
+type AdminService struct {
+	Service *admin.Service
+}
+
+func NewAdminService(serviceAccountKeyFile, gcpAdminUser string) AdminService {
+	return AdminService{Service: getAdminService(serviceAccountKeyFile, gcpAdminUser)}
+}
+
+type MockAdminService struct{}
+
+func (a *MockAdminService) getMembers(groupEmail string) []string {
+	return []string{"a@b.com", "d@e.fi"}
+}
+
+func (a AdminService) getMembers(groupEmail string) []string {
+	return []string{"foo@bar.com"}
+}
+
 // Build and returns an Admin SDK Directory service object authorized with
 // the service accounts that act on behalf of the given user.
 func getAdminService(serviceAccountKeyfile string, gcpAdminUser string) *admin.Service {
@@ -30,7 +52,7 @@ func getAdminService(serviceAccountKeyfile string, gcpAdminUser string) *admin.S
 
 	service, err := admin.NewService(ctx)
 	if err != nil {
-		promErrors.WithLabelValues("get-kube-client").Inc()
+		promErrors.WithLabelValues("get-iam-client").Inc()
 		log.Errorf("Unable to retrieve Google Admin Client: %s", err)
 		return nil
 	}

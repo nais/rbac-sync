@@ -70,7 +70,9 @@ func main() {
 		return
 	}
 
-	s := NewSynchronizer(clientSet, updateInterval, gcpAdminUser, serviceAccountKeyFile, defaultRoleName, defaultRolebindingName)
+	iamClient := NewAdminService(serviceAccountKeyFile, gcpAdminUser)
+
+	s := NewSynchronizer(clientSet, iamClient, updateInterval, gcpAdminUser, serviceAccountKeyFile, defaultRoleName, defaultRolebindingName)
 	s.synchronizeRBAC()
 }
 
