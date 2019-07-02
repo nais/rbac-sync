@@ -5,9 +5,22 @@
 
 ### What It Does
 
-The application reads information from kubernetes namespace, creates rolebinding and adds the google groups members to the newly created role.
-It will also annotate the role bindings created from rbac-sync with the annotation rbac-sync.nais.io/managed=true
-It runs as a pod with updates every five minutes unless another interval has been specified with the update-interval flag.
+rbac-sync's task is to synchronize the members of a Google IAM group into a Kubernetes rolebinding. 
+What group to synchronize, and which role to map is specified as a Namespace annotation. 
+
+#### Namespace configuration
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: myteam
+  annotations:
+    "rbac-sync.nais.io/group-name": myteam@domain.no # email/name of the google group, that will be synced into rolebinding
+    "rbac-sync.nais.io/role-name": team-member # optional, name of role to be mapped into rolebinding
+    "rbac-sync.nais.io/rolebinding-name": myteam-members # optional, name of the rolebinding that rbac-sync creates
+  ...
+```
 
 ### Requirements
 
@@ -15,6 +28,7 @@ It runs as a pod with updates every five minutes unless another interval has bee
 - The email of the a organisational user with access to the Google Admin Directory APIs  **-gcp-admin-user** flag
 - The service account must have set domain wide delegation in admin.google.com: https://developers.google.com/admin-sdk/directory/v1/guides/delegation. Manage API access must be configured with the client id, not the service account email address.
 - The namespaces to synchronise must have an annotation with the group name and optionally role name and role binding name to generate the role binding. See https://github.com/nais/rbac-sync/examples.
+- The role either specified with annotation `rbac-sync.nais.io/role-name` or given as a flag to the rbac-sync binary is assumed to exist in the namespace it will be created. 
 
 ### Flags
 
@@ -24,6 +38,7 @@ It runs as a pod with updates every five minutes unless another interval has bee
 | -gcp-admin-user           | The user to impersonate with access to Google Admin API. |               |
 | -bind-address             | The bind address of the application.                     | :8080         |
 | -update-interval          | Update interval in seconds.                              | 5m0s          |
+
 
 ### Prometheus metrics
 
