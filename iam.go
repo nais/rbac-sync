@@ -27,8 +27,9 @@ func getAdminService(serviceAccountKeyfile string, gcpAdminUser string) *admin.S
 
 	config.Subject = gcpAdminUser
 	ctx := context.Background()
+	client := config.Client(ctx)
 
-	service, err := admin.NewService(ctx)
+	service, err := admin.New(client)
 	if err != nil {
 		promErrors.WithLabelValues("get-kube-client").Inc()
 		log.Errorf("Unable to retrieve Google Admin Client: %s", err)
@@ -39,6 +40,7 @@ func getAdminService(serviceAccountKeyfile string, gcpAdminUser string) *admin.S
 
 // Gets recursive the group members by e-mail address
 func getMembers(service *admin.Service, groupname string) ([]*admin.Member, error) {
+
 	result, err := service.Members.List(groupname).Do()
 	if err != nil {
 		promErrors.WithLabelValues("get-members").Inc()

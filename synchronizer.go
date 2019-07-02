@@ -16,7 +16,8 @@ const (
 	ManagedAnnotation         = AnnotationNS + "/managed"
 	GroupNameAnnotation       = AnnotationNS + "/group-name"
 	RoleNameAnnotation        = AnnotationNS + "/role-name"
-	RolebindingNameAnnotation = AnnotationNS + "/rolebinding-name"
+	RoleBindingNameAnnotation = AnnotationNS + "/rolebinding-name"
+	AuthApiGroup              = "rbac.authorization.k8s.io"
 )
 
 type Synchronizer struct {
@@ -76,7 +77,7 @@ func (s *Synchronizer) NewRbacConfiguration(namespace corev1.Namespace) *RbacCon
 		namespace:       namespace.Name,
 		groupName:       namespace.Annotations[GroupNameAnnotation],
 		roleName:        namespace.Annotations[RoleNameAnnotation],
-		rolebindingName: namespace.Annotations[RolebindingNameAnnotation],
+		rolebindingName: namespace.Annotations[RoleBindingNameAnnotation],
 	}
 
 	if len(cfg.roleName) == 0 {
@@ -116,7 +117,6 @@ func (s *Synchronizer) getAllNamespaces() []corev1.Namespace {
 // Gets group users and updates kubernetes rolebindings
 func (s *Synchronizer) updateRoles(roleClient v1beta1.RoleBindingInterface, configuration *RbacConfiguration) error {
 	service := getAdminService(s.ServiceAccountKeyFile, s.GCPAdminUser)
-
 	result, error := getMembers(service, configuration.groupName)
 	if error != nil {
 		return fmt.Errorf("unable to get members: %s", error)
@@ -169,7 +169,7 @@ func getRoleBindingWithSubjects(configuration *RbacConfiguration, subjects []rba
 		},
 		RoleRef: rbacv1beta1.RoleRef{
 			Kind:     "Role",
-			APIGroup: "rbac.authorization.k8s.io",
+			APIGroup: AuthApiGroup,
 			Name:     configuration.roleName,
 		},
 		Subjects: subjects,
@@ -179,7 +179,7 @@ func getRoleBindingWithSubjects(configuration *RbacConfiguration, subjects []rba
 func getSubjectWithEmail(email string) rbacv1beta1.Subject {
 	return rbacv1beta1.Subject{
 		Kind:     "User",
-		APIGroup: "rbac.authorization.k8s.io",
+		APIGroup: AuthApiGroup,
 		Name:     email,
 	}
 }
