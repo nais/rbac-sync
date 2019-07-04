@@ -8,7 +8,19 @@
 rbac-sync's task is to synchronize the members of a Google IAM group into a Kubernetes rolebinding. 
 What group to synchronize, and which role to map is specified as a Namespace annotation. 
 
-#### Namespace configuration
+#### How it works
+
+On the specified interval, it will:
+
+1. Fetch information about all the namespaces in the cluster
+2. Filter those namespaces who has enabled rbac-sync through the `rbac-sync.nais.io/group-name` annotation (see example below)
+3. For each of these namespaces, it will fetch the members in the group (configured with `rbac-sync.nais.io/group-name`) from Google Admin and generate a RoleBinding containing these users and map these to the configured role (`rbac-sync.nais.io/role-name` or default value provided as flag)
+4. Remove orphan role bindings
+5. Create new role bindings
+6. Update existing role bindings
+7. zZz
+
+#### Example Namespace configuration
 
 ```yaml
 apiVersion: v1
@@ -32,15 +44,37 @@ metadata:
 
 ### Flags
 
-| Flag                      | Description                                              | Default value |
-| :-------------------------| :--------------------------------------------------------| :-------------|
-| -serviceaccount-keyfile   | The Path to the Service Account's Private Key file.      |               |
-| -gcp-admin-user           | The user to impersonate with access to Google Admin API. |               |
-| -bind-address             | The bind address of the application.                     | :8080         |
-| -update-interval          | Update interval in seconds.                              | 5m0s          |
+```
+$ rbac-sync --help 
+Usage of rbac-sync
+  -bind-address string
+        Bind address for application. (default ":8080")
+  -debug
+        enables debug logging
+  -default-role-name string
+        Default name for role if not specified in namespace annotation (default "rbacsync-default")
+  -default-rolebinding-name string
+        Default name for rolebinding if not specified in namespace annotation (default "rbacsync-default")
+  -gcp-admin-user string
+        The google admin user e-mail address.
+  -kubeconfig string
+        path to Kubernetes config file
+  -mock-iam
+        starts rbac-sync with a mocked version of the IAM client
+  -serviceaccount-keyfile string
+        The path to the service account private key file.
+  -update-interval duration
+        Update interval in seconds. (default 5m0s)
+```
 
+### Development
+
+```
+make local # requires a running k8s as current kubeconfig context
+```
+
+This will spin up a rbac-sync in debug mode with a mock IAM client 
 
 ### Prometheus metrics
 
-- **rbac_sync_success**: Cumulative number of role update operations.
 - **rbac_sync_errors**: Cumulative number of errors during role update operations.
