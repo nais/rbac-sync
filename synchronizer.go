@@ -88,7 +88,6 @@ func debug(rolebindings []v1.RoleBinding, header string) {
 		fmt.Println(rb.Namespace, ":", rb.Name)
 	}
 	fmt.Println("-----")
-
 }
 
 func (s *Synchronizer) updateRoleBindings(roleBindings []v1.RoleBinding) {
@@ -151,6 +150,7 @@ func roleBindingsToUpdate(desired []v1.RoleBinding, current []v1.RoleBinding) (u
 
 	return
 }
+
 
 func hasDifferentSubjects(s1 []v1.Subject, s2 []v1.Subject) bool {
 	if len(s1) != len(s2) {

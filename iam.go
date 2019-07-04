@@ -48,8 +48,9 @@ func getAdminService(serviceAccountKeyfile string, gcpAdminUser string) (*admin.
 
 	config.Subject = gcpAdminUser
 	ctx := context.Background()
+	client := config.Client(ctx)
 
-	service, err := admin.NewService(ctx)
+	service, err := admin.New(client)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve Google Admin Client: %s", err)
 	}
@@ -66,6 +67,7 @@ func (a AdminService) getMembers(groupEmail string) ([]string, error) {
 // Gets group members by e-mail address recursively
 func (a AdminService) getMembersObjects(groupEmail string) ([]*admin.Member, error) {
 	result, err := a.Service.Members.List(groupEmail).Do()
+
 	if err != nil {
 		promErrors.WithLabelValues("get-members").Inc()
 		return nil, fmt.Errorf("unable to get members: %s", err)
