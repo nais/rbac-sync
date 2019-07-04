@@ -3,8 +3,10 @@ package main
 import (
 	"flag"
 	"k8s.io/client-go/kubernetes"
+	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
 	"net/http"
 	"os"
 	"os/signal"
@@ -24,6 +26,7 @@ var (
 	bindAddress            string
 	defaultRoleName        string
 	defaultRolebindingName string
+	mockIAM                bool
 	promErrors             = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name:      "rbac_sync_errors",
@@ -41,6 +44,7 @@ func main() {
 	flag.DurationVar(&updateInterval, "update-interval", time.Minute*5, "Update interval in seconds.")
 	flag.StringVar(&defaultRoleName, "default-role-name", "rbacsync-default", "Default name for role if not specified in namespace annotation")
 	flag.StringVar(&defaultRolebindingName, "default-rolebinding-name", "rbacsync-default", "Default name for rolebinding if not specified in namespace annotation")
+	flag.BoolVar(&mockIAM, "mock-iam", false, "starts rbac-sync with a mocked version of the IAM client")
 
 	flag.Parse()
 
@@ -50,13 +54,15 @@ func main() {
 
 	log.SetOutput(os.Stdout)
 
-	if serviceAccountKeyFile == "" {
-		flag.Usage()
-		log.Fatal("Missing configuration: -serviceaccount-keyfile")
-	}
-	if gcpAdminUser == "" {
-		flag.Usage()
-		log.Fatal("Missing configuration: -gcp-admin-user")
+	if !mockIAM {
+		if serviceAccountKeyFile == "" {
+			flag.Usage()
+			log.Fatal("missing configuration: -serviceaccount-keyfile")
+		}
+		if gcpAdminUser == "" {
+			flag.Usage()
+			log.Fatal("missing configuration: -gcp-admin-user")
+		}
 	}
 
 	stopChan := make(chan struct{}, 1)
@@ -66,11 +72,20 @@ func main() {
 
 	clientSet, error := getKubeClient()
 	if error != nil {
-		log.Errorf("Unable to get kubernetes client: %s", error)
-		return
+		log.Fatalf("unable to get kubernetes client: %s", error)
 	}
 
-	s := NewSynchronizer(clientSet, updateInterval, gcpAdminUser, serviceAccountKeyFile, defaultRoleName, defaultRolebindingName)
+	var iamClient IAMClient
+	if mockIAM {
+		iamClient = MockAdminService{}
+	} else {
+		iamClient, error = NewAdminService(serviceAccountKeyFile, gcpAdminUser)
+		if error != nil {
+			log.Fatal(error)
+		}
+	}
+
+	s := NewSynchronizer(clientSet, iamClient, updateInterval, gcpAdminUser, serviceAccountKeyFile, defaultRoleName, defaultRolebindingName)
 	s.synchronizeRBAC()
 }
 
@@ -85,7 +100,7 @@ func serveMetrics(address string) {
 
 	http.Handle("/metrics", promhttp.Handler())
 
-	log.Infof("Server started on %s", address)
+	log.Infof("server started on %s", address)
 	log.Fatal(http.ListenAndServe(address, nil))
 }
 
@@ -94,7 +109,7 @@ func handleSigterm(stopChan chan struct{}) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGTERM)
 	<-signals
-	log.Info("Received SIGTERM. Terminating...")
+	log.Info("received SIGTERM. Terminating...")
 	close(stopChan)
 }
 
@@ -107,7 +122,7 @@ func getKubeClient() (*kubernetes.Clientset, error) {
 
 	clientSet, err := kubernetes.NewForConfig(kubeconfig)
 	if err != nil {
-		log.Errorf("Unable to get kube client: %s", err)
+		log.Errorf("unable to get kube client: %s", err)
 	}
 
 	return clientSet, err

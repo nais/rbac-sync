@@ -9,6 +9,7 @@ require (
 	github.com/imdario/mergo v0.3.7 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/prometheus/client_golang v1.0.0
+	github.com/prometheus/common v0.4.1
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/stretchr/testify v1.3.0
@@ -21,4 +22,5 @@ require (
 	k8s.io/api v0.0.0-20190503184017-f1b257a4ce96 // kubernetes-1.11.10
 	k8s.io/apimachinery v0.0.0-20190223001710-c182ff3b9841 // kubernetes-1.11.10
 	k8s.io/client-go v8.0.0+incompatible // v8.0.0+incompatible
+	k8s.io/kube-openapi v0.0.0-20190603182131-db7b694dc208 // indirect
 )
