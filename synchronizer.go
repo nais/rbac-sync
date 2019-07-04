@@ -27,7 +27,7 @@ type Synchronizer struct {
 	GCPAdminUser           string
 	ServiceAccountKeyFile  string
 	DefaultRoleName        string
-	DefaultRolebindingName string
+	DefaultRoleBindingName string
 }
 
 func NewSynchronizer(clientSet kubernetes.Interface,
@@ -44,8 +44,13 @@ func NewSynchronizer(clientSet kubernetes.Interface,
 		GCPAdminUser:           gcpAdminUser,
 		ServiceAccountKeyFile:  serviceAccountKeyFile,
 		DefaultRoleName:        defaultRoleName,
-		DefaultRolebindingName: defaultRolebindingName,
+		DefaultRoleBindingName: defaultRolebindingName,
 	}
+}
+
+func (s Synchronizer) String() string {
+	return fmt.Sprintf("update interval: %s, GCP admin user: %s, default role name: %s, default role binding name: %s",
+		s.UpdateInterval, s.GCPAdminUser, s.DefaultRoleName, s.DefaultRoleBindingName)
 }
 
 // Read namespaces and synchronizes the desired state with the actual cluster state in duration intervals
@@ -77,34 +82,21 @@ func (s *Synchronizer) synchronizeRBAC() {
 
 		s.updateRoleBindings(roleBindingsToUpdate(desired, current))
 
-		log.Infof("sleeping for %s", s.UpdateInterval)
+		log.Debugf("sleeping for %s", s.UpdateInterval)
 		time.Sleep(s.UpdateInterval)
 	}
 }
 
-func debug(rolebindings []v1.RoleBinding, header string) {
-	fmt.Println(header)
-	for _, rb := range rolebindings {
-		fmt.Println(rb.Namespace, ":", rb.Name)
-	}
-	fmt.Println("-----")
-}
-
+// Updates role binding by deleting and re-creating it because spec.roleRef.Name is immutable
 func (s *Synchronizer) updateRoleBindings(roleBindings []v1.RoleBinding) {
 	for _, roleBinding := range roleBindings {
-		roleBindingClient := s.Clientset.RbacV1().RoleBindings(roleBinding.Namespace)
-		err := roleBindingClient.Delete(roleBinding.Name, nil)
-		if err != nil {
-			promErrors.WithLabelValues("delete-rolebinding").Inc()
-			log.Errorf("unable to delete rolebinding %s in namespace %s: %s", roleBinding.Name, roleBinding.Namespace, err)
+		if err := s.deleteRoleBinding(roleBinding); err != nil {
 			continue
 		}
 
 		if err := s.createRoleBinding(roleBinding); err != nil {
 			continue
 		}
-
-		log.Infof("recreated rolebinding %s in namespace %s", roleBinding.Name, roleBinding.Namespace)
 	}
 }
 
@@ -117,6 +109,18 @@ func (s *Synchronizer) createRoleBindings(bindings []v1.RoleBinding) error {
 	return nil
 }
 
+func (s *Synchronizer) deleteRoleBinding(roleBinding v1.RoleBinding) error {
+	if err := s.Clientset.RbacV1().RoleBindings(roleBinding.Namespace).Delete(roleBinding.Name, nil); err != nil {
+		promErrors.WithLabelValues("delete-rolebinding").Inc()
+		log.Errorf("unable to delete rolebinding %s in namespace %s: %s", roleBinding.Name, roleBinding.Namespace, err)
+		return err
+	}
+
+	log.Debugf("deleted rolebinding: %s in namespace: %s", roleBinding.Name, roleBinding.Namespace)
+
+	return nil
+}
+
 func (s *Synchronizer) createRoleBinding(binding v1.RoleBinding) error {
 	_, err := s.Clientset.RbacV1().RoleBindings(binding.Namespace).Create(&binding)
 
@@ -125,6 +129,8 @@ func (s *Synchronizer) createRoleBinding(binding v1.RoleBinding) error {
 		log.Errorf("unable to create rolebinding %s in namespace %s: %s", binding.Name, binding.Namespace, err)
 		return err
 	}
+
+	log.Debugf("created rolebinding: %s in namespace: %s", binding.Name, binding.Namespace)
 
 	return nil
 }
@@ -150,7 +156,6 @@ func roleBindingsToUpdate(desired []v1.RoleBinding, current []v1.RoleBinding) (u
 
 	return
 }
-
 
 func hasDifferentSubjects(s1 []v1.Subject, s2 []v1.Subject) bool {
 	if len(s1) != len(s2) {
@@ -207,7 +212,7 @@ func (s *Synchronizer) deleteRoleBindings(roleBindings []v1.RoleBinding) {
 			log.Errorf("unable to delete rolebindings: %s", err)
 		}
 
-		log.Infof("deleted orphan rolebinding %s in namespace %s", rolebinding.Name, rolebinding.Namespace)
+		log.Debugf("deleted orphan rolebinding %s in namespace %s", rolebinding.Name, rolebinding.Namespace)
 	}
 }
 
@@ -232,7 +237,7 @@ func (s *Synchronizer) getDesiredRoleBindings(namespaces []corev1.Namespace) (ro
 			return nil, fmt.Errorf("unable to get members for group %s: %s", group, err)
 		}
 
-		rolebindingName := ensureVal(ns.Annotations[RolebindingNameAnnotation], s.DefaultRolebindingName)
+		rolebindingName := ensureVal(ns.Annotations[RolebindingNameAnnotation], s.DefaultRoleBindingName)
 		roleName := ensureVal(ns.Annotations[RoleNameAnnotation], s.DefaultRoleName)
 		rolebindings = append(rolebindings, roleBinding(rolebindingName, ns.Name, roleName, members))
 	}

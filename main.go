@@ -27,6 +27,7 @@ var (
 	defaultRoleName        string
 	defaultRolebindingName string
 	mockIAM                bool
+	debug                  bool
 	promErrors             = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name:      "rbac_sync_errors",
@@ -45,14 +46,11 @@ func main() {
 	flag.StringVar(&defaultRoleName, "default-role-name", "rbacsync-default", "Default name for role if not specified in namespace annotation")
 	flag.StringVar(&defaultRolebindingName, "default-rolebinding-name", "rbacsync-default", "Default name for rolebinding if not specified in namespace annotation")
 	flag.BoolVar(&mockIAM, "mock-iam", false, "starts rbac-sync with a mocked version of the IAM client")
+	flag.BoolVar(&debug, "debug", false, "enables debug logging")
 
 	flag.Parse()
 
-	log.SetFormatter(&log.JSONFormatter{
-		TimestampFormat: time.RFC3339Nano,
-	})
-
-	log.SetOutput(os.Stdout)
+	setupLogging()
 
 	if !mockIAM {
 		if serviceAccountKeyFile == "" {
@@ -67,7 +65,7 @@ func main() {
 
 	stopChan := make(chan struct{}, 1)
 
-	go serveMetrics(bindAddress)
+	go serve(bindAddress)
 	go handleSigterm(stopChan)
 
 	clientSet, error := getKubeClient()
@@ -86,11 +84,22 @@ func main() {
 	}
 
 	s := NewSynchronizer(clientSet, iamClient, updateInterval, gcpAdminUser, serviceAccountKeyFile, defaultRoleName, defaultRolebindingName)
+	log.Infof("starting RBAC synchronizer: %s", s)
 	s.synchronizeRBAC()
 }
 
+func setupLogging() {
+	log.SetFormatter(&log.JSONFormatter{
+		TimestampFormat: time.RFC3339Nano,
+	})
+	log.SetOutput(os.Stdout)
+	if debug {
+		log.SetLevel(log.DebugLevel)
+	}
+}
+
 // Provides health check and metrics routes
-func serveMetrics(address string) {
+func serve(address string) {
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
