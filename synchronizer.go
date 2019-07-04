@@ -21,7 +21,7 @@ const (
 )
 
 type Synchronizer struct {
-	Clientset              *kubernetes.Clientset
+	Clientset              kubernetes.Interface
 	IAMClient              IAMClient
 	UpdateInterval         time.Duration
 	GCPAdminUser           string
@@ -30,7 +30,7 @@ type Synchronizer struct {
 	DefaultRolebindingName string
 }
 
-func NewSynchronizer(clientSet *kubernetes.Clientset,
+func NewSynchronizer(clientSet kubernetes.Interface,
 	iamClient IAMClient,
 	updateInterval time.Duration,
 	gcpAdminUser string,
