@@ -2,14 +2,14 @@ package main
 
 import (
 	"context"
-	"github.com/prometheus/common/log"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2/google"
 	admin "google.golang.org/api/admin/directory/v1"
 	"io/ioutil"
 )
 
 type IAMClient interface {
-	getMembers(groupEmail string) []string
+	getMembers(groupEmail string) ([]string, error)
 }
 
 type AdminService struct {
@@ -22,12 +22,12 @@ func NewAdminService(serviceAccountKeyFile, gcpAdminUser string) AdminService {
 
 type MockAdminService struct{}
 
-func (a *MockAdminService) getMembers(groupEmail string) []string {
-	return []string{"a@b.com", "d@e.fi"}
+func (a MockAdminService) getMembers(groupEmail string) ([]string, error) {
+	return []string{"a@b.com", "d@e.fi"}, nil
 }
 
-func (a AdminService) getMembers(groupEmail string) []string {
-	return []string{"foo@bar.com"}
+func (a AdminService) getMembers(groupEmail string) ([]string, error) {
+	return []string{"foo@bar.com"}, nil
 }
 
 // Build and returns an Admin SDK Directory service object authorized with

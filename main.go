@@ -50,14 +50,14 @@ func main() {
 
 	log.SetOutput(os.Stdout)
 
-	if serviceAccountKeyFile == "" {
-		flag.Usage()
-		log.Fatal("missing configuration: -serviceaccount-keyfile")
-	}
-	if gcpAdminUser == "" {
-		flag.Usage()
-		log.Fatal("missing configuration: -gcp-admin-user")
-	}
+	//if serviceAccountKeyFile == "" {
+	//	flag.Usage()
+	//	log.Fatal("missing configuration: -serviceaccount-keyfile")
+	//}
+	//if gcpAdminUser == "" {
+	//	flag.Usage()
+	//	log.Fatal("missing configuration: -gcp-admin-user")
+	//}
 
 	stopChan := make(chan struct{}, 1)
 
@@ -70,9 +70,9 @@ func main() {
 		return
 	}
 
-	iamClient := NewAdminService(serviceAccountKeyFile, gcpAdminUser)
+	//iamClient := NewAdminService(serviceAccountKeyFile, gcpAdminUser)
 
-	s := NewSynchronizer(clientSet, iamClient, updateInterval, gcpAdminUser, serviceAccountKeyFile, defaultRoleName, defaultRolebindingName)
+	s := NewSynchronizer(clientSet, MockAdminService{}, updateInterval, gcpAdminUser, serviceAccountKeyFile, defaultRoleName, defaultRolebindingName)
 	s.synchronizeRBAC()
 }
 

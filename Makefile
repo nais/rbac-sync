@@ -18,3 +18,7 @@ docker-build:
 
 docker-push:
 	docker push "$(REPO)"
+
+local: 
+	go run main.go iam.go synchronizer.go -kubeconfig ${HOME}/.kube/config -bind-address=127.0.0.1:8080 -update-interval=10s
+

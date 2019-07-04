@@ -2,42 +2,72 @@ package main
 
 import (
 	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/rbac/v1"
 	"testing"
-	"time"
-
-	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
 )
 
-var (
-	rbacConfig = NewSynchronizer(nil, time.Duration(time.Hour), "", "", "", "").NewRbacConfiguration(namespace)
-)
+func TestRolebindings(t *testing.T) {
+	t.Run("finds orphan role bindings", func(t *testing.T) {
+		match := roleBinding("a", "ns1", "admin", nil)
+		diff := roleBinding("b", "ns2", "admin", nil)
+		desired := []v1.RoleBinding{match}
+		actual := []v1.RoleBinding{match, diff}
 
-func TestNewRbacConfiguration(t *testing.T) {
-	assert.NotNil(t, rbacConfig)
-	assert.Equal(t, namespace.Name, rbacConfig.namespace)
-	assert.Equal(t, "nais:teammember", rbacConfig.rolebindingName)
-	assert.Equal(t, "nais:developer", rbacConfig.roleName)
-	assert.Equal(t, groupName, rbacConfig.groupName)
-}
+		roleBindings := diff(desired, actual)
+		assert.Equal(t, len(roleBindings), 1)
+		assert.Equal(t, roleBindings[0], diff)
+	})
 
-func TestGetRoleBindingWithSubjects(t *testing.T) {
-	var subjects []rbacv1beta1.Subject
-	subs := append(subjects, getSubjectWithEmail("testuser@test.com"))
-	rolebinding := getRoleBindingWithSubjects(rbacConfig, subs)
+	t.Run("finds updated role bindings when role has changed", func(t *testing.T) {
+		aWithAdmin := roleBinding("a", "ns1", "admin", nil)
+		aWithEdit := roleBinding("a", "ns1", "edit", nil)
 
-	assert.NotNil(t, rolebinding)
-	assert.Equal(t, namespace.Name, rolebinding.Namespace)
-	assert.Equal(t, "nais:teammember", rolebinding.Name)
-	assert.Equal(t, "nais:developer", rolebinding.RoleRef.Name)
-}
+		desired := []v1.RoleBinding{aWithAdmin}
+		actual := []v1.RoleBinding{aWithEdit}
+		toUpdate := roleBindingsToUpdate(desired, actual)
 
-func TestGetSubjectFromEmail(t *testing.T) {
-	email := "testuser@test.com"
-	subject := getSubjectWithEmail(email)
+		assert.Equal(t, len(toUpdate), 1)
+		assert.Equal(t, toUpdate[0], aWithAdmin)
+	})
 
-	assert.NotNil(t, subject)
-	assert.Equal(t, "User", subject.Kind)
-	assert.Equal(t, "rbac.authorization.k8s.io", subject.APIGroup)
-	assert.Equal(t, email, subject.Name)
+	t.Run("finds no role bindings when subjects are just out of order", func(t *testing.T) {
+		r1 := roleBinding("a", "ns1", "admin", []string{"x", "y", "z"})
+		r2 := roleBinding("a", "ns1", "admin", []string{"z", "x", "y"})
 
+		toUpdate := roleBindingsToUpdate([]v1.RoleBinding{r1}, []v1.RoleBinding{r2})
+		assert.Equal(t, len(toUpdate), 0)
+	})
+
+	t.Run("finds updated role bindings when subject has been added", func(t *testing.T) {
+		r1 := roleBinding("a", "ns1", "admin", []string{"x", "y", "z"})
+		r2 := roleBinding("a", "ns1", "admin", []string{"x", "y"})
+
+		toUpdate := roleBindingsToUpdate([]v1.RoleBinding{r1}, []v1.RoleBinding{r2})
+		assert.Equal(t, len(toUpdate), 1)
+		assert.Equal(t, toUpdate[0], r1)
+	})
+
+	t.Run("finds updated role bindings when subject has been removed", func(t *testing.T) {
+		r1 := roleBinding("a", "ns1", "admin", []string{"x", "y"})
+		r2 := roleBinding("a", "ns1", "admin", []string{"x", "y", "z"})
+
+		toUpdate := roleBindingsToUpdate([]v1.RoleBinding{r1}, []v1.RoleBinding{r2})
+		assert.Equal(t, len(toUpdate), 1)
+		assert.Equal(t, toUpdate[0], r1)
+	})
+
+	t.Run("finds updated role bindings when subject has changed", func(t *testing.T) {
+		r1 := roleBinding("a", "ns1", "admin", []string{"x", "y", "z"})
+		r2 := roleBinding("a", "ns1", "admin", []string{"a", "x", "y"})
+
+		toUpdate := roleBindingsToUpdate([]v1.RoleBinding{r1}, []v1.RoleBinding{r2})
+		assert.Equal(t, len(toUpdate), 1)
+		assert.Equal(t, toUpdate[0], r1)
+	})
+
+	t.Run("errors when not finding any matching role bindings", func(t *testing.T) {
+		roleBindings := []v1.RoleBinding{roleBinding("a", "ns2", "", nil)}
+		_, err := getMatchingRoleBinding(roleBinding("a", "ns1", "", nil), roleBindings)
+		assert.Error(t, err)
+	})
 }
