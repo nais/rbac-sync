@@ -62,13 +62,17 @@ func (s *Synchronizer) synchronizeRBAC() {
 		orphans := diff(desired, current)
 		s.deleteRoleBindings(orphans)
 
+		// Remove orphans from list of current role bindings
 		current = diff(orphans, current)
+
+		// New role bindings to create
 		added := diff(current, desired)
 
 		if err := s.createRoleBindings(added); err != nil {
 			continue
 		}
 
+		// Add newly created role bindings to list of current role bindings in the cluster
 		current = append(current, added...)
 
 		s.updateRoleBindings(roleBindingsToUpdate(desired, current))
