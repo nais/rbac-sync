@@ -24,7 +24,7 @@ var (
 	bindAddress            string
 	defaultRoleName        string
 	defaultRolebindingName string
-	localMode              bool
+	mockIAM                bool
 	promErrors             = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name:      "rbac_sync_errors",
@@ -42,7 +42,7 @@ func main() {
 	flag.DurationVar(&updateInterval, "update-interval", time.Minute*5, "Update interval in seconds.")
 	flag.StringVar(&defaultRoleName, "default-role-name", "rbacsync-default", "Default name for role if not specified in namespace annotation")
 	flag.StringVar(&defaultRolebindingName, "default-rolebinding-name", "rbacsync-default", "Default name for rolebinding if not specified in namespace annotation")
-	flag.BoolVar(&localMode, "localMode", "rbacsync-default", "Default name for rolebinding if not specified in namespace annotation")
+	flag.BoolVar(&mockIAM, "mock-iam", false, "starts rbac-sync with a mocked version of the IAM client")
 
 	flag.Parse()
 
@@ -52,14 +52,16 @@ func main() {
 
 	log.SetOutput(os.Stdout)
 
-	//if serviceAccountKeyFile == "" {
-	//	flag.Usage()
-	//	log.Fatal("missing configuration: -serviceaccount-keyfile")
-	//}
-	//if gcpAdminUser == "" {
-	//	flag.Usage()
-	//	log.Fatal("missing configuration: -gcp-admin-user")
-	//}
+	if !mockIAM {
+		if serviceAccountKeyFile == "" {
+			flag.Usage()
+			log.Fatal("missing configuration: -serviceaccount-keyfile")
+		}
+		if gcpAdminUser == "" {
+			flag.Usage()
+			log.Fatal("missing configuration: -gcp-admin-user")
+		}
+	}
 
 	stopChan := make(chan struct{}, 1)
 
@@ -68,13 +70,20 @@ func main() {
 
 	clientSet, error := getKubeClient()
 	if error != nil {
-		log.Errorf("unable to get kubernetes client: %s", error)
-		return
+		log.Fatalf("unable to get kubernetes client: %s", error)
 	}
 
-	//iamClient := NewAdminService(serviceAccountKeyFile, gcpAdminUser)
+	var iamClient IAMClient
+	if mockIAM {
+		iamClient = MockAdminService{}
+	} else {
+		iamClient, error = NewAdminService(serviceAccountKeyFile, gcpAdminUser)
+		if error != nil {
+			log.Fatal(error)
+		}
+	}
 
-	s := NewSynchronizer(clientSet, MockAdminService{}, updateInterval, gcpAdminUser, serviceAccountKeyFile, defaultRoleName, defaultRolebindingName)
+	s := NewSynchronizer(clientSet, iamClient, updateInterval, gcpAdminUser, serviceAccountKeyFile, defaultRoleName, defaultRolebindingName)
 	s.synchronizeRBAC()
 }
 
