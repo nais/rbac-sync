@@ -48,32 +48,22 @@ func NewSynchronizer(clientSet *kubernetes.Clientset,
 	}
 }
 
-// Read namespaces and update roles in duration intervals
-// Uses the clientset to fetch namespaces and update the rolebindings
+// Read namespaces and synchronizes the desired state with the actual cluster state in duration intervals
 func (s *Synchronizer) synchronizeRBAC() {
 	for {
-		desired, _ := s.getDesiredRoleBindings(s.getTargetNamespaces())
-		debug(desired, "desired rolebindings:")
-
 		current, err := s.getCurrentManagedRoleBindings()
-
 		if err != nil {
 			continue
 		}
 
-		debug(current, "current managed rolebindings in cluster:")
+		desired, _ := s.getDesiredRoleBindings(s.getTargetNamespaces())
 
+		// Managed bindings that exist in cluster, but is not part of the configuration
 		orphans := diff(desired, current)
-
-		debug(orphans, "orphan rolebindings (to be deleted):")
-
 		s.deleteRoleBindings(orphans)
 
 		current = diff(orphans, current)
-
 		added := diff(current, desired)
-
-		debug(added, "added rolebindings (to be created):")
 
 		if err := s.createRoleBindings(added); err != nil {
 			continue
@@ -81,11 +71,7 @@ func (s *Synchronizer) synchronizeRBAC() {
 
 		current = append(current, added...)
 
-		rolebindingsToUpdate := roleBindingsToUpdate(desired, current)
-
-		debug(rolebindingsToUpdate, "updated rolebindings (to be recreated):")
-
-		s.updateRoleBindings(rolebindingsToUpdate)
+		s.updateRoleBindings(roleBindingsToUpdate(desired, current))
 
 		log.Infof("sleeping for %s", s.UpdateInterval)
 		time.Sleep(s.UpdateInterval)

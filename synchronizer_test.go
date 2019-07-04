@@ -8,23 +8,19 @@ import (
 
 func TestRolebindings(t *testing.T) {
 	t.Run("finds orphan role bindings", func(t *testing.T) {
-		match := roleBinding("a", "ns1", "admin", nil)
-		diff := roleBinding("b", "ns2", "admin", nil)
-		desired := []v1.RoleBinding{match}
-		actual := []v1.RoleBinding{match, diff}
+		r1 := roleBinding("a", "ns1", "admin", nil)
+		r2 := roleBinding("b", "ns2", "admin", nil)
 
-		roleBindings := diff(desired, actual)
+		roleBindings := diff([]v1.RoleBinding{r1}, []v1.RoleBinding{r1, r2})
 		assert.Equal(t, len(roleBindings), 1)
-		assert.Equal(t, roleBindings[0], diff)
+		assert.Equal(t, roleBindings[0], r2)
 	})
 
 	t.Run("finds updated role bindings when role has changed", func(t *testing.T) {
 		aWithAdmin := roleBinding("a", "ns1", "admin", nil)
 		aWithEdit := roleBinding("a", "ns1", "edit", nil)
 
-		desired := []v1.RoleBinding{aWithAdmin}
-		actual := []v1.RoleBinding{aWithEdit}
-		toUpdate := roleBindingsToUpdate(desired, actual)
+		toUpdate := roleBindingsToUpdate([]v1.RoleBinding{aWithAdmin}, []v1.RoleBinding{aWithEdit})
 
 		assert.Equal(t, len(toUpdate), 1)
 		assert.Equal(t, toUpdate[0], aWithAdmin)

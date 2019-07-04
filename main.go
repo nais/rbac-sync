@@ -24,6 +24,7 @@ var (
 	bindAddress            string
 	defaultRoleName        string
 	defaultRolebindingName string
+	localMode              bool
 	promErrors             = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name:      "rbac_sync_errors",
@@ -41,6 +42,7 @@ func main() {
 	flag.DurationVar(&updateInterval, "update-interval", time.Minute*5, "Update interval in seconds.")
 	flag.StringVar(&defaultRoleName, "default-role-name", "rbacsync-default", "Default name for role if not specified in namespace annotation")
 	flag.StringVar(&defaultRolebindingName, "default-rolebinding-name", "rbacsync-default", "Default name for rolebinding if not specified in namespace annotation")
+	flag.BoolVar(&localMode, "localMode", "rbacsync-default", "Default name for rolebinding if not specified in namespace annotation")
 
 	flag.Parse()
 
