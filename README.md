@@ -3,7 +3,7 @@
 [![CircleCI](https://circleci.com/gh/nais/rbac-sync/tree/master.svg?style=svg)](https://circleci.com/gh/nais/rbac-sync/tree/master)
 [![Go Report Card](https://goreportcard.com/badge/github.com/nais/rbac-sync)](https://goreportcard.com/report/github.com/nais/rbac-sync)
 
-### What It Does
+### What it does
 
 rbac-sync's task is to synchronize the members of a Google IAM group into a Kubernetes rolebinding. 
 What group to synchronize, and which role to map is specified as a Namespace annotation. 
