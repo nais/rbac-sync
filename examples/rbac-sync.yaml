@@ -63,7 +63,7 @@ spec:
         imagePullPolicy: Always
         args:
         - '-update-interval=10m'
-        - '-gcp-admin-user=sten.ivar.rokke@nav.no'
+        - '-gcp-admin-user=foo@domain.tld'
         - '-serviceaccount-keyfile=/secrets/credentials.json'
         - '-bind-address=:8080'
         livenessProbe:
