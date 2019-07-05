@@ -104,9 +104,18 @@ func (s *Synchronizer) updateRoleBindings(roleBindings []v1.RoleBinding) {
 	promSuccess.WithLabelValues("updated-rolebinding").Add(float64(len(roleBindings)))
 }
 
-func (s *Synchronizer) createRoleBindings(bindings []v1.RoleBinding) error {
-	for _, binding := range bindings {
+func (s *Synchronizer) createRoleBindings(roleBindings []v1.RoleBinding) error {
+	for _, binding := range roleBindings {
 		if err := s.createRoleBinding(binding); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Synchronizer) deleteRoleBindings(roleBindings []v1.RoleBinding) error {
+	for _, binding := range roleBindings {
+		if err := s.deleteRoleBinding(binding); err != nil {
 			return err
 		}
 	}
@@ -161,6 +170,16 @@ func roleBindingsToUpdate(desired []v1.RoleBinding, current []v1.RoleBinding) (u
 	return
 }
 
+func getMatchingRoleBinding(roleBinding v1.RoleBinding, roleBindings []v1.RoleBinding) (*v1.RoleBinding, error) {
+	for _, rb := range roleBindings {
+		if roleBinding.Name == rb.Name && roleBinding.Namespace == rb.Namespace {
+			return &rb, nil
+		}
+
+	}
+	return nil, fmt.Errorf("unable to find matching rolebinding, this is bad")
+}
+
 func hasDifferentSubjects(s1 []v1.Subject, s2 []v1.Subject) bool {
 	if len(s1) != len(s2) {
 		return true
@@ -181,16 +200,6 @@ func hasDifferentSubjects(s1 []v1.Subject, s2 []v1.Subject) bool {
 	return false
 }
 
-func getMatchingRoleBinding(roleBinding v1.RoleBinding, roleBindings []v1.RoleBinding) (*v1.RoleBinding, error) {
-	for _, rb := range roleBindings {
-		if roleBinding.Name == rb.Name && roleBinding.Namespace == rb.Namespace {
-			return &rb, nil
-		}
-
-	}
-	return nil, fmt.Errorf("unable to find matching rolebinding, this is bad")
-}
-
 // returns the difference between two slices of rolebinding objects as a new slice
 func diff(base, roleBindings []v1.RoleBinding) (diff []v1.RoleBinding) {
 	for _, roleBinding := range roleBindings {
@@ -207,17 +216,6 @@ func diff(base, roleBindings []v1.RoleBinding) (diff []v1.RoleBinding) {
 	}
 
 	return
-}
-
-func (s *Synchronizer) deleteRoleBindings(roleBindings []v1.RoleBinding) {
-	for _, rolebinding := range roleBindings {
-		err := s.Clientset.RbacV1().RoleBindings(rolebinding.Namespace).Delete(rolebinding.Name, nil)
-		if err != nil {
-			log.Errorf("unable to delete rolebindings: %s", err)
-		}
-
-		log.Debugf("deleted orphan rolebinding %s in namespace %s", rolebinding.Name, rolebinding.Namespace)
-	}
 }
 
 func (s *Synchronizer) getCurrentManagedRoleBindings() (roleBindings []v1.RoleBinding, err error) {
