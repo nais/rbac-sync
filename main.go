@@ -33,14 +33,14 @@ var (
 			Name:      "successes",
 			Namespace: "rbac_sync",
 			Help:      "Cumulative number of successful operations"},
-		[]string{"count"},
+		[]string{"operation"},
 	)
 	promErrors = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name:      "errors",
 			Namespace: "rbac_sync",
 			Help:      "Cumulative number of failed operations"},
-		[]string{"count"},
+		[]string{"operation"},
 	)
 )
 
