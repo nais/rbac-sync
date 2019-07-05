@@ -66,6 +66,7 @@ func (s *Synchronizer) synchronizeRBAC() {
 		// Managed bindings that exist in cluster, but is not part of the configuration
 		orphans := diff(desired, current)
 		s.deleteRoleBindings(orphans)
+		promSuccess.WithLabelValues("delete-orphan").Add(float64(len(orphans)))
 
 		// Remove orphans from list of current role bindings
 		current = diff(orphans, current)
@@ -76,6 +77,7 @@ func (s *Synchronizer) synchronizeRBAC() {
 		if err := s.createRoleBindings(added); err != nil {
 			continue
 		}
+		promSuccess.WithLabelValues("create-rolebinding").Add(float64(len(added)))
 
 		// Add newly created role bindings to list of current role bindings in the cluster
 		current = append(current, added...)
@@ -98,6 +100,8 @@ func (s *Synchronizer) updateRoleBindings(roleBindings []v1.RoleBinding) {
 			continue
 		}
 	}
+
+	promSuccess.WithLabelValues("updated-rolebinding").Add(float64(len(roleBindings)))
 }
 
 func (s *Synchronizer) createRoleBindings(bindings []v1.RoleBinding) error {

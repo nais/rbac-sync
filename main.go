@@ -28,11 +28,18 @@ var (
 	defaultRolebindingName string
 	mockIAM                bool
 	debug                  bool
+	promSuccess             = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name:      "successes",
+			Namespace: "rbac_sync",
+			Help:      "Cumulative number of successful operations"},
+		[]string{"count"},
+	)
 	promErrors             = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name:      "rbac_sync_errors",
+			Name:      "errors",
 			Namespace: "rbac_sync",
-			Help:      "Cumulative number of errors during role update operations"},
+			Help:      "Cumulative number of failed operations"},
 		[]string{"count"},
 	)
 )
