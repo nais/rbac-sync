@@ -112,6 +112,7 @@ func serve(address string) {
 		w.Write([]byte("OK"))
 	})
 
+	prometheus.MustRegister(promSuccess)
 	prometheus.MustRegister(promErrors)
 
 	http.Handle("/metrics", promhttp.Handler())
