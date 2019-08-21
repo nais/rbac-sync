@@ -180,7 +180,7 @@ func getMatchingRoleBinding(roleBinding v1.RoleBinding, roleBindings []v1.RoleBi
 		}
 
 	}
-	return nil, fmt.Error("unable to find matching rolebinding, this is bad")
+	return nil, fmt.Errorf("unable to find matching rolebinding, this is bad")
 }
 
 func hasDifferentSubjects(s1 []v1.Subject, s2 []v1.Subject) bool {
