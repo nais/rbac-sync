@@ -39,6 +39,9 @@ metadata:
 - The service account's private key file in json format: **-serviceaccount-keyfile** flag
 - The email of the a organisational user with access to the Google Admin Directory APIs  **-gcp-admin-user** flag
 - The service account must have set domain wide delegation in admin.google.com: https://developers.google.com/admin-sdk/directory/v1/guides/delegation. Manage API access must be configured with the client id, not the service account email address.
+  - Add manage API client access with correct id and the following API Scopes:
+    View group subscriptions on your domain  https://www.googleapis.com/auth/admin.directory.group.member.readonly 
+    View groups on your domain  https://www.googleapis.com/auth/admin.directory.group.readonly 
 - The namespaces to synchronise must have an annotation with the group name and optionally role name and role binding name to generate the role binding. See https://github.com/nais/rbac-sync/examples.
 - The role either specified with annotation `rbac-sync.nais.io/role-name` or given as a flag to the rbac-sync binary is assumed to exist in the namespace it will be created. 
 
