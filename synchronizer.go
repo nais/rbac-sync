@@ -259,7 +259,7 @@ func roleBinding(name string, namespace string, role string, members []string) v
 				ManagedLabel: "true",
 			}},
 		RoleRef: v1.RoleRef{
-			Kind:     "Role",
+			Kind:     "ClusterRole",
 			APIGroup: RBACAPIGroup,
 			Name:     role,
 		},
