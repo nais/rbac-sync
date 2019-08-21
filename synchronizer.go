@@ -61,7 +61,10 @@ func (s *Synchronizer) synchronizeRBAC() {
 			continue
 		}
 
-		desired, _ := s.getDesiredRoleBindings(s.getTargetNamespaces())
+		desired, err := s.getDesiredRoleBindings(s.getTargetNamespaces())
+		if err != nil {
+			log.Errorf("unable to get desired rolebindings", err)
+		}
 
 		// Managed bindings that exist in cluster, but is not part of the configuration
 		orphans := diff(desired, current)
@@ -177,7 +180,7 @@ func getMatchingRoleBinding(roleBinding v1.RoleBinding, roleBindings []v1.RoleBi
 		}
 
 	}
-	return nil, fmt.Errorf("unable to find matching rolebinding, this is bad")
+	return nil, fmt.Error("unable to find matching rolebinding, this is bad")
 }
 
 func hasDifferentSubjects(s1 []v1.Subject, s2 []v1.Subject) bool {
