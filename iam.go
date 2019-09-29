@@ -6,6 +6,7 @@ import (
 	"golang.org/x/oauth2/google"
 	admin "google.golang.org/api/admin/directory/v1"
 	"io/ioutil"
+	"strings"
 )
 
 type IAMClient interface {
@@ -19,6 +20,10 @@ type AdminService struct {
 type MockAdminService struct{}
 
 func (a MockAdminService) getMembers(groupEmail string) ([]string, error) {
+	if strings.ToLower(groupEmail) == "nonexistent" {
+		return nil, fmt.Errorf("group doesnt exist")
+	}
+
 	return []string{"a@b.com", "d@e.fi", "h@i.jp"}, nil
 }
 

@@ -10,7 +10,7 @@ import (
 
 var (
 	groupName = "test@test.com"
-	namespace = v1.Namespace{ObjectMeta: metav1.ObjectMeta{
+	ns1       = v1.Namespace{ObjectMeta: metav1.ObjectMeta{
 		Name:        "testspace",
 		Annotations: map[string]string{"rbac-sync.nais.io/group-name": groupName},
 	}}

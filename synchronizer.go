@@ -61,10 +61,8 @@ func (s *Synchronizer) synchronizeRBAC() {
 			continue
 		}
 
-		desired, err := s.getDesiredRoleBindings(s.getTargetNamespaces())
-		if err != nil {
-			log.Errorf("unable to get desired rolebindings", err)
-		}
+		// Generate desired rolebindings based on namespace annotations
+		desired := s.getDesiredRoleBindings(s.getTargetNamespaces())
 
 		// Managed bindings that exist in cluster, but is not part of the configuration
 		orphans := diff(desired, current)
@@ -233,13 +231,14 @@ func (s *Synchronizer) getCurrentManagedRoleBindings() (roleBindings []v1.RoleBi
 	return bindingList.Items, nil
 }
 
-func (s *Synchronizer) getDesiredRoleBindings(namespaces []corev1.Namespace) (rolebindings []v1.RoleBinding, err error) {
+func (s *Synchronizer) getDesiredRoleBindings(namespaces []corev1.Namespace) (rolebindings []v1.RoleBinding) {
 	for _, ns := range namespaces {
 		group := ns.Annotations[GroupNameAnnotation]
 		members, err := s.IAMClient.getMembers(group)
 
 		if err != nil {
-			return nil, fmt.Errorf("unable to get members for group %s: %s", group, err)
+			log.Errorf("unable to get members for group %s: %s", group, err)
+			continue
 		}
 
 		rolebindingName := ensureVal(ns.Annotations[RolebindingNameAnnotation], s.DefaultRoleBindingName)
