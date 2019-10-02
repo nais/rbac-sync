@@ -14,7 +14,7 @@ On the specified interval, it will:
 
 1. Fetch information about all the namespaces in the cluster
 2. Filter those namespaces who has enabled rbac-sync through the `rbac-sync.nais.io/group-name` annotation (see example below)
-3. For each of these namespaces, it will fetch the members in the group (configured with `rbac-sync.nais.io/group-name`) from Google Admin and generate a RoleBinding containing these users and map these to the configured role (`rbac-sync.nais.io/role-name` or default value provided as flag)
+3. For each of these namespaces, it will fetch the members in the group (configured with `rbac-sync.nais.io/group-name`) from Google Admin and generate a RoleBinding containing these users and map these to the configured role (`rbac-sync.nais.io/roles` or default value provided as flag)
 4. Remove orphan role bindings
 5. Create new role bindings
 6. Update existing role bindings
@@ -29,8 +29,8 @@ metadata:
   name: myteam
   annotations:
     "rbac-sync.nais.io/group-name": myteam@domain.no # email/name of the google group, that will be synced into rolebinding
-    "rbac-sync.nais.io/role-name": team-member # optional, name of role to be mapped into rolebinding
-    "rbac-sync.nais.io/rolebinding-name": myteam-members # optional, name of the rolebinding that rbac-sync creates
+    "rbac-sync.nais.io/roles": team-member # optional, name of role to be mapped into rolebinding
+    "rbac-sync.nais.io/rolebinding-prefix": myteam-members # optional, name of the rolebinding that rbac-sync creates
   ...
 ```
 
@@ -42,8 +42,8 @@ metadata:
   - Add manage API client access with correct id and the following API Scopes:
     View group subscriptions on your domain  https://www.googleapis.com/auth/admin.directory.group.member.readonly 
     View groups on your domain  https://www.googleapis.com/auth/admin.directory.group.readonly 
-- The namespaces to synchronise must have an annotation with the group name and optionally role name and role binding name to generate the role binding. See https://github.com/nais/rbac-sync/examples.
-- The role either specified with annotation `rbac-sync.nais.io/role-name` or given as a flag to the rbac-sync binary is assumed to exist in the namespace it will be created. 
+- The namespaces to synchronize must have an annotation with the group name and optionally roles and role binding prefix to generate the role bindings. See https://github.com/nais/rbac-sync/examples.
+- The role either specified with annotation `rbac-sync.nais.io/roles` or given as a flag to the rbac-sync binary is assumed to exist.
 
 ### Flags
 
@@ -54,10 +54,10 @@ Usage of rbac-sync
         Bind address for application. (default ":8080")
   -debug
         enables debug logging
-  -default-role-name string
-        Default name for role if not specified in namespace annotation (default "rbacsync-default")
-  -default-rolebinding-name string
-        Default name for rolebinding if not specified in namespace annotation (default "rbacsync-default")
+  -default-rolebinding-prefix string
+        Default rolebinding-prefix if not specified in namespace annotation, rolebinding name format will be <prefix>-<role> (default "rbacsync-default")
+  -default-roles string
+        Default role(s) if not specified in namespace annotation. Comma-separated (default "rbacsync-default")
   -gcp-admin-user string
         The google admin user e-mail address.
   -kubeconfig string
@@ -77,7 +77,3 @@ make local # requires a running k8s as current kubeconfig context
 ```
 
 This will spin up a rbac-sync in debug mode with a mock IAM client 
-
-### Prometheus metrics
-
-- **rbac_sync_errors**: Cumulative number of errors during role update operations.
