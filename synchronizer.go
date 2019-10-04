@@ -12,22 +12,22 @@ import (
 )
 
 const (
-	AnnotationNS              = "rbac-sync.nais.io"
-	ManagedLabel              = AnnotationNS + "/managed"
-	GroupNameAnnotation       = AnnotationNS + "/group-name"
-	RoleNameAnnotation        = AnnotationNS + "/role-name"
-	RolebindingNameAnnotation = AnnotationNS + "/rolebinding-name"
-	RBACAPIGroup              = "rbac.authorization.k8s.io"
+	AnnotationNS                = "rbac-sync.nais.io"
+	ManagedLabel                = AnnotationNS + "/managed"
+	GroupNameAnnotation         = AnnotationNS + "/group-name"
+	RolesAnnotation             = AnnotationNS + "/roles"
+	RolebindingPrefixAnnotation = AnnotationNS + "/rolebinding-prefix"
+	RBACAPIGroup                = "rbac.authorization.k8s.io"
 )
 
 type Synchronizer struct {
-	Clientset              kubernetes.Interface
-	IAMClient              IAMClient
-	UpdateInterval         time.Duration
-	GCPAdminUser           string
-	ServiceAccountKeyFile  string
-	DefaultRoleName        string
-	DefaultRoleBindingName string
+	Clientset                kubernetes.Interface
+	IAMClient                IAMClient
+	UpdateInterval           time.Duration
+	GCPAdminUser             string
+	ServiceAccountKeyFile    string
+	DefaultRoles             string
+	DefaultRoleBindingPrefix string
 }
 
 func NewSynchronizer(clientSet kubernetes.Interface,
@@ -35,22 +35,22 @@ func NewSynchronizer(clientSet kubernetes.Interface,
 	updateInterval time.Duration,
 	gcpAdminUser string,
 	serviceAccountKeyFile string,
-	defaultRoleName string,
+	defaultRoleNames string,
 	defaultRolebindingName string) *Synchronizer {
 	return &Synchronizer{
-		Clientset:              clientSet,
-		IAMClient:              iamClient,
-		UpdateInterval:         updateInterval,
-		GCPAdminUser:           gcpAdminUser,
-		ServiceAccountKeyFile:  serviceAccountKeyFile,
-		DefaultRoleName:        defaultRoleName,
-		DefaultRoleBindingName: defaultRolebindingName,
+		Clientset:                clientSet,
+		IAMClient:                iamClient,
+		UpdateInterval:           updateInterval,
+		GCPAdminUser:             gcpAdminUser,
+		ServiceAccountKeyFile:    serviceAccountKeyFile,
+		DefaultRoles:             defaultRoleNames,
+		DefaultRoleBindingPrefix: defaultRolebindingName,
 	}
 }
 
 func (s Synchronizer) String() string {
-	return fmt.Sprintf("update interval: %s, GCP admin user: %s, default role name: %s, default role binding name: %s",
-		s.UpdateInterval, s.GCPAdminUser, s.DefaultRoleName, s.DefaultRoleBindingName)
+	return fmt.Sprintf("update interval: %s, GCP admin user: %s, default roles: %s, default role binding prefix: %s",
+		s.UpdateInterval, s.GCPAdminUser, s.DefaultRoles, s.DefaultRoleBindingPrefix)
 }
 
 // Read namespaces and synchronizes the desired state with the actual cluster state in duration intervals
@@ -78,6 +78,7 @@ func (s *Synchronizer) synchronizeRBAC() {
 		if err := s.createRoleBindings(added); err != nil {
 			continue
 		}
+
 		promSuccess.WithLabelValues("create-rolebinding").Add(float64(len(added)))
 
 		// Add newly created role bindings to list of current role bindings in the cluster
@@ -149,76 +150,6 @@ func (s *Synchronizer) createRoleBinding(binding v1.RoleBinding) error {
 	return nil
 }
 
-func roleBindingsToUpdate(desired []v1.RoleBinding, current []v1.RoleBinding) (updated []v1.RoleBinding) {
-	for _, rolebinding := range desired {
-		match, err := getMatchingRoleBinding(rolebinding, current)
-		if err != nil {
-			promErrors.WithLabelValues("no-matching-rolebinding").Inc()
-			log.Error(err)
-		}
-
-		if rolebinding.RoleRef.Name != match.RoleRef.Name {
-			updated = append(updated, rolebinding)
-			continue
-		}
-
-		if hasDifferentSubjects(rolebinding.Subjects, match.Subjects) {
-			updated = append(updated, rolebinding)
-			continue
-		}
-	}
-
-	return
-}
-
-func getMatchingRoleBinding(roleBinding v1.RoleBinding, roleBindings []v1.RoleBinding) (*v1.RoleBinding, error) {
-	for _, rb := range roleBindings {
-		if roleBinding.Name == rb.Name && roleBinding.Namespace == rb.Namespace {
-			return &rb, nil
-		}
-
-	}
-	return nil, fmt.Errorf("unable to find matching rolebinding, this is bad")
-}
-
-func hasDifferentSubjects(s1 []v1.Subject, s2 []v1.Subject) bool {
-	if len(s1) != len(s2) {
-		return true
-	}
-
-	for _, subject1 := range s1 {
-		match := false
-		for _, subject2 := range s2 {
-			if subject1.Name == subject2.Name {
-				match = true
-			}
-		}
-
-		if !match {
-			return true
-		}
-	}
-	return false
-}
-
-// returns the difference between two slices of rolebinding objects as a new slice
-func diff(base, roleBindings []v1.RoleBinding) (diff []v1.RoleBinding) {
-	for _, roleBinding := range roleBindings {
-		match := false
-		for _, baseRoleBinding := range base {
-			if baseRoleBinding.Name == roleBinding.Name && baseRoleBinding.Namespace == roleBinding.Namespace {
-				match = true
-			}
-		}
-
-		if !match {
-			diff = append(diff, roleBinding)
-		}
-	}
-
-	return
-}
-
 func (s *Synchronizer) getCurrentManagedRoleBindings() (roleBindings []v1.RoleBinding, err error) {
 	bindingList, err := s.Clientset.RbacV1().RoleBindings("").List(metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=true", ManagedLabel)})
 
@@ -241,39 +172,12 @@ func (s *Synchronizer) getDesiredRoleBindings(namespaces []corev1.Namespace) (ro
 			continue
 		}
 
-		rolebindingName := ensureVal(ns.Annotations[RolebindingNameAnnotation], s.DefaultRoleBindingName)
-		roleName := ensureVal(ns.Annotations[RoleNameAnnotation], s.DefaultRoleName)
-		rolebindings = append(rolebindings, roleBinding(rolebindingName, ns.Name, roleName, members))
-	}
+		rolebindingName := ensureVal(ns.Annotations[RolebindingPrefixAnnotation], s.DefaultRoleBindingPrefix)
+		roleNames := ensureVal(ns.Annotations[RolesAnnotation], s.DefaultRoles)
 
-	return
-}
-
-func roleBinding(name string, namespace string, role string, members []string) v1.RoleBinding {
-	return v1.RoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels: map[string]string{
-				ManagedLabel: "true",
-			}},
-		RoleRef: v1.RoleRef{
-			Kind:     "ClusterRole",
-			APIGroup: RBACAPIGroup,
-			Name:     role,
-		},
-		Subjects: subjects(members),
-	}
-}
-
-func subjects(members []string) (subjects []v1.Subject) {
-	for _, member := range members {
-
-		subjects = append(subjects, v1.Subject{
-			Kind:     "User",
-			APIGroup: RBACAPIGroup,
-			Name:     member,
-		})
+		for _, role := range strings.Split(roleNames, ",") {
+			rolebindings = append(rolebindings, roleBinding(rolebindingName, ns.Name, role, members))
+		}
 	}
 
 	return

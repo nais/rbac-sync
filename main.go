@@ -19,16 +19,16 @@ import (
 )
 
 var (
-	kubeconfig             string
-	serviceAccountKeyFile  string
-	gcpAdminUser           string
-	updateInterval         time.Duration
-	bindAddress            string
-	defaultRoleName        string
-	defaultRolebindingName string
-	mockIAM                bool
-	debug                  bool
-	promSuccess            = prometheus.NewCounterVec(
+	kubeconfig               string
+	serviceAccountKeyFile    string
+	gcpAdminUser             string
+	updateInterval           time.Duration
+	bindAddress              string
+	defaultRoles             string
+	defaultRolebindingPrefix string
+	mockIAM                  bool
+	debug                    bool
+	promSuccess              = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name:      "successes",
 			Namespace: "rbac_sync",
@@ -50,8 +50,8 @@ func main() {
 	flag.StringVar(&gcpAdminUser, "gcp-admin-user", "", "The google admin user e-mail address.")
 	flag.StringVar(&bindAddress, "bind-address", ":8080", "Bind address for application.")
 	flag.DurationVar(&updateInterval, "update-interval", time.Minute*5, "Update interval in seconds.")
-	flag.StringVar(&defaultRoleName, "default-role-name", "rbacsync-default", "Default name for role if not specified in namespace annotation")
-	flag.StringVar(&defaultRolebindingName, "default-rolebinding-name", "rbacsync-default", "Default name for rolebinding if not specified in namespace annotation")
+	flag.StringVar(&defaultRoles, "default-roles", "rbacsync-default", "Default role(s) if not specified in namespace annotation. Comma-separated")
+	flag.StringVar(&defaultRolebindingPrefix, "default-rolebinding-prefix", "rbacsync-default", "Default rolebinding-prefix if not specified in namespace annotation, rolebinding name format will be <prefix>-<role>")
 	flag.BoolVar(&mockIAM, "mock-iam", false, "starts rbac-sync with a mocked version of the IAM client")
 	flag.BoolVar(&debug, "debug", false, "enables debug logging")
 
@@ -90,7 +90,7 @@ func main() {
 		}
 	}
 
-	s := NewSynchronizer(clientSet, iamClient, updateInterval, gcpAdminUser, serviceAccountKeyFile, defaultRoleName, defaultRolebindingName)
+	s := NewSynchronizer(clientSet, iamClient, updateInterval, gcpAdminUser, serviceAccountKeyFile, defaultRoles, defaultRolebindingPrefix)
 	log.Infof("starting RBAC synchronizer: %s", s)
 	s.synchronizeRBAC()
 }
