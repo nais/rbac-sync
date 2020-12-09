@@ -12,15 +12,14 @@ import (
 	"testing"
 )
 
-var s = NewSynchronizer(fake.NewSimpleClientset(), MockAdminService{}, time.Second*10, "testuser@test.domain", "testing", "", "")
-
 func TestSynchronizer(t *testing.T) {
+	synchronizer := NewSynchronizer(fake.NewSimpleClientset(), MockAdminService{}, time.Second*10, "testuser@test.domain", "testing", "", "")
 
 	t.Run("creates new role bindings", func(t *testing.T) {
 		rolebindings := []rbacv1.RoleBinding{roleBinding("a", "ns1", "admin", []string{"x", "y", "z"}),
 			roleBinding("b", "ns2", "admin", []string{"x", "y", "z"})}
 
-		err := s.createRoleBindings(rolebindings)
+		err := synchronizer.createRoleBindings(rolebindings)
 		assert.NoError(t, err)
 	})
 
@@ -28,12 +27,12 @@ func TestSynchronizer(t *testing.T) {
 		rolebindingsWithError := []rbacv1.RoleBinding{roleBinding("a", "ns1", "admin", []string{"x", "y", "z"}),
 			roleBinding("a", "ns1", "admin", []string{"x", "y", "z"})}
 
-		error := s.createRoleBindings(rolebindingsWithError)
+		error := synchronizer.createRoleBindings(rolebindingsWithError)
 		assert.Error(t, error)
 	})
 
 	t.Run("skips non-existent groups", func(t *testing.T) {
-		rb := s.getDesiredRoleBindings([]corev1.Namespace{{
+		rb := synchronizer.getDesiredRoleBindings([]corev1.Namespace{{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{"rbac-sync.nais.io/group-name": "nonexistent"},
 			}}, {
@@ -45,7 +44,7 @@ func TestSynchronizer(t *testing.T) {
 	})
 
 	t.Run("creates multiple rolebindings when multiple roles are requested", func(t *testing.T) {
-		rbs := s.getDesiredRoleBindings([]corev1.Namespace{{
+		rbs := synchronizer.getDesiredRoleBindings([]corev1.Namespace{{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{GroupNameAnnotation: "foo@bar.com", RolesAnnotation: "a,b", RolebindingPrefixAnnotation: "prefix"},
 			}}})

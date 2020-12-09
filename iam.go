@@ -13,10 +13,6 @@ type IAMClient interface {
 	getMembers(groupEmail string) ([]string, error)
 }
 
-type AdminService struct {
-	Service *admin.Service
-}
-
 type MockAdminService struct{}
 
 func (a MockAdminService) getMembers(groupEmail string) ([]string, error) {
@@ -25,6 +21,10 @@ func (a MockAdminService) getMembers(groupEmail string) ([]string, error) {
 	}
 
 	return []string{"a@b.com", "d@e.fi", "h@i.jp"}, nil
+}
+
+type AdminService struct {
+	Service *admin.Service
 }
 
 func NewAdminService(serviceAccountKeyFile, gcpAdminUser string) (*AdminService, error) {

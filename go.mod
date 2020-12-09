@@ -1,5 +1,7 @@
 module github.com/nais/rbac-sync
 
+go 1.14
+
 require (
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/gogo/protobuf v1.2.1 // indirect
