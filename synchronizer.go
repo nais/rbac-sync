@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -55,18 +56,19 @@ func (s Synchronizer) String() string {
 
 // Read namespaces and synchronizes the desired state with the actual cluster state in duration intervals
 func (s *Synchronizer) synchronizeRBAC() {
+	ctx := context.Background()
 	for {
-		current, err := s.getCurrentManagedRoleBindings()
+		current, err := s.getCurrentManagedRoleBindings(ctx)
 		if err != nil {
 			continue
 		}
 
 		// Generate desired rolebindings based on namespace annotations
-		desired := s.getDesiredRoleBindings(s.getTargetNamespaces())
+		desired := s.getDesiredRoleBindings(s.getTargetNamespaces(ctx))
 
 		// Managed bindings that exist in cluster, but is not part of the configuration
 		orphans := diff(desired, current)
-		s.deleteRoleBindings(orphans)
+		s.deleteRoleBindings(ctx, orphans)
 		promSuccess.WithLabelValues("delete-orphan").Add(float64(len(orphans)))
 
 		// Remove orphans from list of current role bindings
@@ -75,7 +77,7 @@ func (s *Synchronizer) synchronizeRBAC() {
 		// New role bindings to create
 		added := diff(current, desired)
 
-		if err := s.createRoleBindings(added); err != nil {
+		if err := s.createRoleBindings(ctx, added); err != nil {
 			continue
 		}
 
@@ -84,7 +86,7 @@ func (s *Synchronizer) synchronizeRBAC() {
 		// Add newly created role bindings to list of current role bindings in the cluster
 		current = append(current, added...)
 
-		s.updateRoleBindings(roleBindingsToUpdate(desired, current))
+		s.updateRoleBindings(ctx, roleBindingsToUpdate(desired, current))
 
 		log.Debugf("sleeping for %s", s.UpdateInterval)
 		time.Sleep(s.UpdateInterval)
@@ -92,13 +94,13 @@ func (s *Synchronizer) synchronizeRBAC() {
 }
 
 // Updates role binding by deleting and re-creating it because spec.roleRef.Name is immutable
-func (s *Synchronizer) updateRoleBindings(roleBindings []v1.RoleBinding) {
+func (s *Synchronizer) updateRoleBindings(ctx context.Context, roleBindings []v1.RoleBinding) {
 	for _, roleBinding := range roleBindings {
-		if err := s.deleteRoleBinding(roleBinding); err != nil {
+		if err := s.deleteRoleBinding(ctx, roleBinding); err != nil {
 			continue
 		}
 
-		if err := s.createRoleBinding(roleBinding); err != nil {
+		if err := s.createRoleBinding(ctx, roleBinding); err != nil {
 			continue
 		}
 	}
@@ -106,26 +108,26 @@ func (s *Synchronizer) updateRoleBindings(roleBindings []v1.RoleBinding) {
 	promSuccess.WithLabelValues("updated-rolebinding").Add(float64(len(roleBindings)))
 }
 
-func (s *Synchronizer) createRoleBindings(roleBindings []v1.RoleBinding) error {
+func (s *Synchronizer) createRoleBindings(ctx context.Context, roleBindings []v1.RoleBinding) error {
 	for _, binding := range roleBindings {
-		if err := s.createRoleBinding(binding); err != nil {
+		if err := s.createRoleBinding(ctx, binding); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *Synchronizer) deleteRoleBindings(roleBindings []v1.RoleBinding) error {
+func (s *Synchronizer) deleteRoleBindings(ctx context.Context, roleBindings []v1.RoleBinding) error {
 	for _, binding := range roleBindings {
-		if err := s.deleteRoleBinding(binding); err != nil {
+		if err := s.deleteRoleBinding(ctx, binding); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *Synchronizer) deleteRoleBinding(roleBinding v1.RoleBinding) error {
-	if err := s.Clientset.RbacV1().RoleBindings(roleBinding.Namespace).Delete(roleBinding.Name, nil); err != nil {
+func (s *Synchronizer) deleteRoleBinding(ctx context.Context, roleBinding v1.RoleBinding) error {
+	if err := s.Clientset.RbacV1().RoleBindings(roleBinding.Namespace).Delete(ctx, roleBinding.Name, metav1.DeleteOptions{}); err != nil {
 		promErrors.WithLabelValues("delete-rolebinding").Inc()
 		log.Errorf("unable to delete rolebinding %s in namespace %s: %s", roleBinding.Name, roleBinding.Namespace, err)
 		return err
@@ -136,8 +138,8 @@ func (s *Synchronizer) deleteRoleBinding(roleBinding v1.RoleBinding) error {
 	return nil
 }
 
-func (s *Synchronizer) createRoleBinding(binding v1.RoleBinding) error {
-	_, err := s.Clientset.RbacV1().RoleBindings(binding.Namespace).Create(&binding)
+func (s *Synchronizer) createRoleBinding(ctx context.Context, binding v1.RoleBinding) error {
+	_, err := s.Clientset.RbacV1().RoleBindings(binding.Namespace).Create(ctx, &binding, metav1.CreateOptions{})
 
 	if err != nil {
 		promErrors.WithLabelValues("create-rolebinding").Inc()
@@ -150,8 +152,8 @@ func (s *Synchronizer) createRoleBinding(binding v1.RoleBinding) error {
 	return nil
 }
 
-func (s *Synchronizer) getCurrentManagedRoleBindings() (roleBindings []v1.RoleBinding, err error) {
-	bindingList, err := s.Clientset.RbacV1().RoleBindings("").List(metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=true", ManagedLabel)})
+func (s *Synchronizer) getCurrentManagedRoleBindings(ctx context.Context) (roleBindings []v1.RoleBinding, err error) {
+	bindingList, err := s.Clientset.RbacV1().RoleBindings("").List(ctx, metav1.ListOptions{LabelSelector: fmt.Sprintf("%s=true", ManagedLabel)})
 
 	if err != nil {
 		promErrors.WithLabelValues("get-current-rolebindings").Inc()
@@ -183,8 +185,8 @@ func (s *Synchronizer) getDesiredRoleBindings(namespaces []corev1.Namespace) (ro
 	return
 }
 
-func (s *Synchronizer) getTargetNamespaces() (managedNamespaces []corev1.Namespace) {
-	namespaces, err := s.Clientset.CoreV1().Namespaces().List(metav1.ListOptions{})
+func (s *Synchronizer) getTargetNamespaces(ctx context.Context) (managedNamespaces []corev1.Namespace) {
+	namespaces, err := s.Clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		log.Errorf("unable to get all namespaces: %s", err)
 	}
