@@ -9,7 +9,7 @@ config:
   iamSecret: ""
 
 image:
-  repository: "navikt/rbac-sync"
+  repository: "europe-north1-docker.pkg.dev/nais-io/nais/images/rbac-sync"
   pullPolicy: "IfNotPresent"
   tag: "main"
 
