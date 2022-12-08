@@ -1,13 +1,8 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  {{- with .Values.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
   labels:
     app: {{ .Release.Name }}
-    {{- toYaml .Values.labels | nindent 4 }}
   name: {{ .Release.Name }}
 spec:
   replicas: {{ .Values.replicas }}
