@@ -4,7 +4,7 @@ ENV GOOS=linux
 ENV GO111MODULE=on
 WORKDIR /go/src/github.com/nais/rbac-sync
 COPY . .
-RUN make install; go build -o rbac-sync; \
+RUN make install; make build; \
   curl -o ca-certificates.crt https://curl.haxx.se/ca/cacert.pem; \
   cat gts.pem >> ca-certificates.crt
 
