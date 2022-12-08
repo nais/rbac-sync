@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  {{- with .Values.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    app: {{ .Release.Name }}
+    {{- toYaml .Values.labels | nindent 4 }}
+  name: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        prometheus.io/port: "8080"
+        prometheus.io/scrape: "true"
+      labels:
+        app: {{ .Release.Name }}
+      name: {{ .Release.Name }}
+    spec:
+      containers:
+      - args:
+        - -update-interval=15m
+        - -gcp-admin-user=deus.ex@nav.no
+        - -serviceaccount-keyfile=/secrets/credentials.json
+        - -default-roles=admin,naisdeveloper
+        - -default-rolebinding-prefix=teammembers
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+            scheme: HTTP
+        name: rbac-sync
+        resources:
+          limits:
+            cpu: 100m
+            memory: 50Mi
+          requests:
+            cpu: 10m
+            memory: 30Mi
+        securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+        volumeMounts:
+        - mountPath: /secrets
+          name: {{ .Release.Name }}
+          readOnly: true
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      serviceAccount: {{ .Release.Name }}
+      serviceAccountName: {{ .Release.Name }}
+      volumes:
+      - name: {{ .Release.Name }}
+        secret:
+          defaultMode: 420
+          items:
+          - key: credentials.json
+            path: credentials.json
+          secretName: {{ .Release.Name }}

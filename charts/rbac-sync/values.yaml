@@ -1,0 +1,35 @@
+# Default values for naiserator.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+iamSecret: ""
+
+image:
+  repository: "navikt/rbac-sync"
+  pullPolicy: "IfNotPresent"
+  tag: "2022-03-24-b8702ae"
+
+labels:
+  
+podSecurityContext:
+  fsGroup: 65532
+  runAsNonRoot: true
+  supplementalGroups:
+    - 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+  # fsGroup: 2000
+
+replicas: 1
+
+containerSecurityContext:
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 65532
+  seccompProfile:
+    type: RuntimeDefault
+  allowPrivilegeEscalation: false

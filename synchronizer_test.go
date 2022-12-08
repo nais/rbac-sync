@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -13,13 +14,14 @@ import (
 )
 
 func TestSynchronizer(t *testing.T) {
+	ctx := context.Background()
 	synchronizer := NewSynchronizer(fake.NewSimpleClientset(), MockAdminService{}, time.Second*10, "testuser@test.domain", "testing", "", "")
 
 	t.Run("creates new role bindings", func(t *testing.T) {
 		rolebindings := []rbacv1.RoleBinding{roleBinding("a", "ns1", "admin", []string{"x", "y", "z"}),
 			roleBinding("b", "ns2", "admin", []string{"x", "y", "z"})}
 
-		err := synchronizer.createRoleBindings(rolebindings)
+		err := synchronizer.createRoleBindings(ctx, rolebindings)
 		assert.NoError(t, err)
 	})
 
@@ -27,7 +29,7 @@ func TestSynchronizer(t *testing.T) {
 		rolebindingsWithError := []rbacv1.RoleBinding{roleBinding("a", "ns1", "admin", []string{"x", "y", "z"}),
 			roleBinding("a", "ns1", "admin", []string{"x", "y", "z"})}
 
-		error := synchronizer.createRoleBindings(rolebindingsWithError)
+		error := synchronizer.createRoleBindings(ctx, rolebindingsWithError)
 		assert.Error(t, error)
 	})
 
