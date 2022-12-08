@@ -13,8 +13,6 @@ image:
   pullPolicy: "IfNotPresent"
   tag: "main"
 
-labels:
-  
 podSecurityContext:
   fsGroup: 65532
   runAsNonRoot: true
