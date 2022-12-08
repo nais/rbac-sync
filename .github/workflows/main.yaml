@@ -10,6 +10,18 @@ env:
   IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
   REGISTRY: europe-north1-docker.pkg.dev/nais-io/nais/images
 jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          go-version: ">=1.19.3"
+      - name: Vulnerability check
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
   build_and_push:
     permissions:
       contents: "read"
@@ -21,7 +33,7 @@ jobs:
         uses: actions/checkout@v3
       - id: "auth"
         name: "Authenticate to Google Cloud"
-        uses: "google-github-actions/auth@v0.6.0"
+        uses: "google-github-actions/auth@v1.0.0"
         with:
           workload_identity_provider: ${{ secrets.NAIS_IO_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: "gh-rbac-sync@nais-io.iam.gserviceaccount.com"
@@ -50,7 +62,7 @@ jobs:
             type=sha
       - name: Build and push
         if: github.ref == 'refs/heads/main'
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           context: .
           file: Dockerfile
