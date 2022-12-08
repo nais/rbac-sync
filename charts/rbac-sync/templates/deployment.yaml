@@ -25,11 +25,11 @@ spec:
     spec:
       containers:
       - args:
-        - -update-interval=15m
+        - -update-interval={{ .Values.config.updateInterval }}
         - -gcp-admin-user=deus.ex@nav.no
         - -serviceaccount-keyfile=/secrets/credentials.json
-        - -default-roles=admin,naisdeveloper
-        - -default-rolebinding-prefix=teammembers
+        - -default-roles={{ .Values.config.defaultRoles }}
+        - -default-rolebinding-prefix={{ .Values.config.defaultRolebindingPrefix }}
         image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         livenessProbe:

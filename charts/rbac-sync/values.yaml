@@ -2,12 +2,16 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-iamSecret: ""
+config:
+  defaultRoles: "admin,naisdeveloper"
+  defaultRolebindingPrefix: "teammembers"
+  updateInterval: "15m"
+  iamSecret: ""
 
 image:
   repository: "navikt/rbac-sync"
   pullPolicy: "IfNotPresent"
-  tag: "2022-03-24-b8702ae"
+  tag: "main"
 
 labels:
   
