@@ -1,6 +1,6 @@
 ## rbac-sync
 [![License](http://img.shields.io/badge/license-mit-blue.svg?style=flat-square)](https://raw.githubusercontent.com/nais/rbac-sync/master/LICENSE)
-[![CircleCI](https://circleci.com/gh/nais/rbac-sync/tree/master.svg?style=svg)](https://circleci.com/gh/nais/rbac-sync/tree/master)
+[![github](https://github.com/nais/rbac-sync/actions/workflows/main.yaml/badge.svg)
 [![Go Report Card](https://goreportcard.com/badge/github.com/nais/rbac-sync)](https://goreportcard.com/report/github.com/nais/rbac-sync)
 
 ### What it does
